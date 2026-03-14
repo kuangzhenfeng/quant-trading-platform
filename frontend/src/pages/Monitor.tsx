@@ -65,7 +65,7 @@ export default function Monitor() {
             title="总盈亏"
             value={pnl?.total_pnl || 0}
             precision={2}
-            valueStyle={{ color: (pnl?.total_pnl || 0) >= 0 ? '#3f8600' : '#cf1322' }}
+            styles={{ value: { color: (pnl?.total_pnl || 0) >= 0 ? '#3f8600' : '#cf1322' } }}
             prefix={pnl?.total_pnl >= 0 ? '+' : ''}
           />
         </Card>

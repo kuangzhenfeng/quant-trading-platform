@@ -3,6 +3,17 @@ import { Link, Outlet } from 'react-router-dom';
 
 const { Header, Sider, Content } = Layout;
 
+const menuItems = [
+  { key: '1', label: <Link to="/">仪表盘</Link> },
+  { key: '2', label: <Link to="/market">行情看板</Link> },
+  { key: '3', label: <Link to="/trading">交易</Link> },
+  { key: '4', label: <Link to="/strategy">策略</Link> },
+  { key: '5', label: <Link to="/monitor">监控</Link> },
+  { key: '6', label: <Link to="/account">账户</Link> },
+  { key: '7', label: <Link to="/logs">日志</Link> },
+  { key: '8', label: <Link to="/backtest">回测</Link> },
+];
+
 export default function MainLayout() {
   return (
     <Layout style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
@@ -27,37 +38,13 @@ export default function MainLayout() {
           <Menu
             mode="inline"
             defaultSelectedKeys={['1']}
+            items={menuItems}
             style={{
               background: 'var(--bg-secondary)',
               border: 'none'
             }}
             theme="dark"
-          >
-            <Menu.Item key="1">
-              <Link to="/" style={{ color: 'var(--text-primary)' }}>仪表盘</Link>
-            </Menu.Item>
-            <Menu.Item key="2">
-              <Link to="/market" style={{ color: 'var(--text-primary)' }}>行情看板</Link>
-            </Menu.Item>
-            <Menu.Item key="3">
-              <Link to="/trading" style={{ color: 'var(--text-primary)' }}>交易</Link>
-            </Menu.Item>
-            <Menu.Item key="4">
-              <Link to="/strategy" style={{ color: 'var(--text-primary)' }}>策略</Link>
-            </Menu.Item>
-            <Menu.Item key="5">
-              <Link to="/monitor" style={{ color: 'var(--text-primary)' }}>监控</Link>
-            </Menu.Item>
-            <Menu.Item key="6">
-              <Link to="/account" style={{ color: 'var(--text-primary)' }}>账户</Link>
-            </Menu.Item>
-            <Menu.Item key="7">
-              <Link to="/logs" style={{ color: 'var(--text-primary)' }}>日志</Link>
-            </Menu.Item>
-            <Menu.Item key="8">
-              <Link to="/backtest" style={{ color: 'var(--text-primary)' }}>回测</Link>
-            </Menu.Item>
-          </Menu>
+          />
         </Sider>
         <Content style={{ padding: '24px', background: 'var(--bg-primary)' }}>
           <Outlet />

@@ -16,7 +16,7 @@ export default function Dashboard() {
               title={<span style={{ color: 'var(--text-secondary)' }}>账户余额</span>}
               value={account?.balance || 0}
               prefix="¥"
-              valueStyle={{ color: 'var(--accent-green)', fontFamily: 'monospace' }}
+              styles={{ value: { color: 'var(--accent-green)', fontFamily: 'monospace' } }}
               className="mono glow-green"
             />
           </Card>
@@ -27,7 +27,7 @@ export default function Dashboard() {
               title={<span style={{ color: 'var(--text-secondary)' }}>可用资金</span>}
               value={account?.available || 0}
               prefix="¥"
-              valueStyle={{ color: 'var(--accent-blue)', fontFamily: 'monospace' }}
+              styles={{ value: { color: 'var(--accent-blue)', fontFamily: 'monospace' } }}
             />
           </Card>
         </Col>
@@ -37,7 +37,7 @@ export default function Dashboard() {
               title={<span style={{ color: 'var(--text-secondary)' }}>冻结资金</span>}
               value={account?.frozen || 0}
               prefix="¥"
-              valueStyle={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}
+              styles={{ value: { color: 'var(--text-secondary)', fontFamily: 'monospace' } }}
             />
           </Card>
         </Col>
