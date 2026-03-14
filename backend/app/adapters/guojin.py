@@ -31,8 +31,9 @@ class GuojinAdapter(BrokerAdapter):
         """获取实时行情"""
         # Mock 实现
         return TickData(
+            broker="guojin",
             symbol=symbol,
-            price=10.50,
+            last_price=10.50,
             volume=1000000,
             timestamp=datetime.now()
         )

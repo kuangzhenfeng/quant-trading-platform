@@ -31,8 +31,9 @@ class MoomooAdapter(BrokerAdapter):
         """获取实时行情"""
         # Mock 实现
         return TickData(
+            broker="moomoo",
             symbol=symbol,
-            price=150.25,
+            last_price=150.25,
             volume=500000,
             timestamp=datetime.now()
         )

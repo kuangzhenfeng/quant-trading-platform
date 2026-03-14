@@ -17,8 +17,9 @@ class OrderStatus(str, Enum):
     REJECTED = "rejected"
 
 class TickData(BaseModel):
+    broker: str
     symbol: str
-    price: float
+    last_price: float
     volume: int
     timestamp: datetime
 

@@ -21,7 +21,7 @@ async def test_okx_get_tick():
     tick = await adapter.get_tick("BTC-USDT")
 
     assert tick.symbol == "BTC-USDT"
-    assert tick.price > 0
+    assert tick.last_price > 0
     assert tick.volume >= 0
 
     await adapter.disconnect()

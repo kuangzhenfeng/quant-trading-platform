@@ -3,6 +3,7 @@ import MainLayout from './components/Layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Trading from './pages/Trading';
 import Market from './pages/Market';
+import Strategy from './pages/Strategy';
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="market" element={<Market />} />
           <Route path="trading" element={<Trading />} />
+          <Route path="strategy" element={<Strategy />} />
         </Route>
       </Routes>
     </BrowserRouter>

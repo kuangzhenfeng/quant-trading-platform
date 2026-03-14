@@ -42,6 +42,9 @@ export default function MainLayout() {
             <Menu.Item key="3">
               <Link to="/trading" style={{ color: 'var(--text-primary)' }}>交易</Link>
             </Menu.Item>
+            <Menu.Item key="4">
+              <Link to="/strategy" style={{ color: 'var(--text-primary)' }}>策略</Link>
+            </Menu.Item>
           </Menu>
         </Sider>
         <Content style={{ padding: '24px', background: 'var(--bg-primary)' }}>

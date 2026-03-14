@@ -48,8 +48,9 @@ class OKXAdapter(BrokerAdapter):
 
         ticker = data["data"][0]
         return TickData(
+            broker="okx",
             symbol=symbol,
-            price=float(ticker["last"]),
+            last_price=float(ticker["last"]),
             volume=int(float(ticker.get("vol24h", 0))),
             timestamp=datetime.now()
         )

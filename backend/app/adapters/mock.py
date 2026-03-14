@@ -24,8 +24,9 @@ class MockAdapter(BrokerAdapter):
     async def get_tick(self, symbol: str) -> TickData:
         base_price = 100.0
         return TickData(
+            broker="mock",
             symbol=symbol,
-            price=base_price + random.uniform(-5, 5),
+            last_price=base_price + random.uniform(-5, 5),
             volume=random.randint(1000, 10000),
             timestamp=datetime.now()
         )

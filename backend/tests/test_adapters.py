@@ -15,7 +15,7 @@ async def test_mock_adapter_get_tick():
     adapter = MockAdapter({})
     tick = await adapter.get_tick("AAPL")
     assert tick.symbol == "AAPL"
-    assert tick.price > 0
+    assert tick.last_price > 0
     assert tick.volume > 0
 
 @pytest.mark.asyncio
