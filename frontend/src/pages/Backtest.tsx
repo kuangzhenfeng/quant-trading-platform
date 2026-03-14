@@ -66,7 +66,7 @@ export default function Backtest() {
                 value={result.total_return * 100}
                 precision={2}
                 suffix="%"
-                valueStyle={{ color: result.total_return >= 0 ? '#3f8600' : '#cf1322' }}
+                styles={{ value: { color: result.total_return >= 0 ? '#3f8600' : '#cf1322' } }}
               />
             </Col>
             <Col span={6}>
@@ -75,7 +75,7 @@ export default function Backtest() {
                 value={result.max_drawdown * 100}
                 precision={2}
                 suffix="%"
-                valueStyle={{ color: '#cf1322' }}
+                styles={{ value: { color: '#cf1322' } }}
               />
             </Col>
             <Col span={6}>

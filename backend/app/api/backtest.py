@@ -11,9 +11,12 @@ async def run_backtest(config: BacktestConfig):
     """运行回测"""
     strategy = MAStrategy(
         name=config.strategy_id,
-        symbol=config.symbol,
-        params={"short_period": 5, "long_period": 20},
-        quantity=1.0
+        params={
+            "symbol": config.symbol,
+            "short_period": 5,
+            "long_period": 20,
+            "quantity": 1.0
+        }
     )
     backtest_id = await backtest_engine.run_backtest(config, strategy)
     return {"backtest_id": backtest_id}

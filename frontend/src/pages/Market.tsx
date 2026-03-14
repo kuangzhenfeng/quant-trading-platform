@@ -37,7 +37,7 @@ export default function Market() {
       key: 'price',
       render: (price: number) => (
         <span style={{ color: 'var(--accent-green)', fontFamily: 'monospace' }}>
-          {price.toFixed(2)}
+          {price?.toFixed(2) || '-'}
         </span>
       )
     },
@@ -46,7 +46,7 @@ export default function Market() {
       dataIndex: 'volume',
       key: 'volume',
       render: (vol: number) => (
-        <span style={{ fontFamily: 'monospace' }}>{vol.toLocaleString()}</span>
+        <span style={{ fontFamily: 'monospace' }}>{vol?.toLocaleString() || '-'}</span>
       )
     },
   ];

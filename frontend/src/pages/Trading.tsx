@@ -87,7 +87,7 @@ export default function Trading() {
       </Row>
 
       <Card title="下单" style={{ marginBottom: 24 }}>
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <Space vertical style={{ width: '100%' }} size="large">
           <Space>
             <span>券商:</span>
             <Select value={broker} onChange={setBroker} style={{ width: 120 }}>

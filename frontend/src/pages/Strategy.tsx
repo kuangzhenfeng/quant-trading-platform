@@ -62,7 +62,7 @@ export default function Strategy() {
   return (
     <div style={{ padding: 24 }}>
       <Card title="均线策略" style={{ marginBottom: 24 }}>
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <Space vertical style={{ width: '100%' }} size="large">
           <Space>
             <span>券商:</span>
             <Select value={broker} onChange={setBroker} style={{ width: 120 }}>
