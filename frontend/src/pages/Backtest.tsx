@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Card, Form, Input, DatePicker, Button, Statistic, Row, Col, message } from 'antd';
 import { backtestApi } from '../services/backtest';
-import dayjs from 'dayjs';
+import type { BacktestResult, BacktestFormValues } from '../types/api';
 
 export default function Backtest() {
   const [form] = Form.useForm();
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleRun = async (values: any) => {
+  const handleRun = async (values: BacktestFormValues) => {
     setLoading(true);
     try {
       const config = {
@@ -27,7 +27,7 @@ export default function Backtest() {
         setLoading(false);
         message.success('回测完成');
       }, 2000);
-    } catch (error) {
+    } catch {
       setLoading(false);
       message.error('回测失败');
     }
@@ -66,7 +66,7 @@ export default function Backtest() {
                 value={result.total_return * 100}
                 precision={2}
                 suffix="%"
-                styles={{ value: { color: result.total_return >= 0 ? '#3f8600' : '#cf1322' } }}
+                styles={{ content: { color: result.total_return >= 0 ? '#3f8600' : '#cf1322' } }}
               />
             </Col>
             <Col span={6}>
@@ -75,7 +75,7 @@ export default function Backtest() {
                 value={result.max_drawdown * 100}
                 precision={2}
                 suffix="%"
-                styles={{ value: { color: '#cf1322' } }}
+                styles={{ content: { color: '#cf1322' } }}
               />
             </Col>
             <Col span={6}>

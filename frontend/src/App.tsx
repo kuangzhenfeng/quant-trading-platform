@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { ConfigProvider, theme } from 'antd';
+import { ConfigProvider, theme, App as AntApp } from 'antd';
 import MainLayout from './components/Layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Trading from './pages/Trading';
@@ -29,20 +29,22 @@ export default function App() {
         },
       }}
     >
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<MainLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="market" element={<Market />} />
-            <Route path="trading" element={<Trading />} />
-            <Route path="strategy" element={<Strategy />} />
-            <Route path="monitor" element={<Monitor />} />
-            <Route path="account" element={<Account />} />
-            <Route path="logs" element={<Logs />} />
-            <Route path="backtest" element={<Backtest />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <AntApp>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<MainLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="market" element={<Market />} />
+              <Route path="trading" element={<Trading />} />
+              <Route path="strategy" element={<Strategy />} />
+              <Route path="monitor" element={<Monitor />} />
+              <Route path="account" element={<Account />} />
+              <Route path="logs" element={<Logs />} />
+              <Route path="backtest" element={<Backtest />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
   );
 }

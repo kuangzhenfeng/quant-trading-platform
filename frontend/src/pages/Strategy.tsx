@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Card, Select, InputNumber, Button, message, Space, List } from 'antd';
+import { Card, Select, InputNumber, Button, message, Space } from 'antd';
 import { strategyApi } from '../services/strategy';
+import type { ApiError } from '../types/api';
 
 export default function Strategy() {
   const [broker, setBroker] = useState('okx');
@@ -22,8 +23,8 @@ export default function Strategy() {
       });
       setStrategyId(result.strategy_id);
       message.success('策略创建成功');
-    } catch (error: any) {
-      message.error(error.response?.data?.detail || '创建失败');
+    } catch (error: unknown) {
+      message.error((error as ApiError).response?.data?.detail || '创建失败');
     } finally {
       setLoading(false);
     }
@@ -34,8 +35,8 @@ export default function Strategy() {
     try {
       await strategyApi.start(strategyId);
       message.success('策略已启动');
-    } catch (error: any) {
-      message.error(error.response?.data?.detail || '启动失败');
+    } catch (error: unknown) {
+      message.error((error as ApiError).response?.data?.detail || '启动失败');
     }
   };
 
@@ -44,8 +45,8 @@ export default function Strategy() {
     try {
       await strategyApi.stop(strategyId);
       message.success('策略已停止');
-    } catch (error: any) {
-      message.error(error.response?.data?.detail || '停止失败');
+    } catch (error: unknown) {
+      message.error((error as ApiError).response?.data?.detail || '停止失败');
     }
   };
 
@@ -54,7 +55,7 @@ export default function Strategy() {
     try {
       const logs = await strategyApi.getLogs(strategyId);
       setLogs(logs);
-    } catch (error: any) {
+    } catch {
       message.error('获取日志失败');
     }
   };
@@ -98,11 +99,17 @@ export default function Strategy() {
       </Card>
 
       <Card title="策略日志">
-        <List
-          dataSource={logs}
-          renderItem={item => <List.Item>{item}</List.Item>}
-          style={{ maxHeight: 400, overflow: 'auto' }}
-        />
+        <div style={{ maxHeight: 400, overflow: 'auto' }}>
+          {logs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>No data</div>
+          ) : (
+            logs.map((log, index) => (
+              <div key={index} style={{ padding: '8px', borderBottom: '1px solid #f0f0f0' }}>
+                {log}
+              </div>
+            ))
+          )}
+        </div>
       </Card>
     </div>
   );

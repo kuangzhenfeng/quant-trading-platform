@@ -14,7 +14,7 @@
 | 层级 | 技术 |
 |------|------|
 | 前端 | React + TypeScript + Vite + Ant Design |
-| 后端 | Python 3.11+ / FastAPI / WebSocket |
+| 后端 | Python 3.11+ / FastAPI / WebSocket / uv |
 | 数据库 | SQLite（开发）/ PostgreSQL（生产） |
 | 部署 | Docker + Docker Compose |
 
@@ -70,6 +70,7 @@ quant-trading-platform/
 
 ### 后端
 - Python **3.11+**
+- 使用 **uv** 作为包管理器和运行器
 - 全面使用**类型注解**
 - **async/await** 异步编程
 - Pydantic 做数据校验
@@ -84,12 +85,11 @@ quant-trading-platform/
 # 前端
 cd frontend && npm install        # 安装依赖
 cd frontend && npm run dev        # 启动开发服务器
+cd frontend && npm run build      # 构建生产版本
+cd frontend && npm run lint       # 代码检查
 
 # 后端
-cd backend && pip install -r requirements.txt   # 安装依赖
-cd backend && uvicorn app.main:app --reload     # 启动开发服务器
-
-# 测试
-cd backend && pytest              # 运行后端测试
-cd frontend && npm run test       # 运行前端测试
+cd backend && uv sync             # 安装依赖（使用 uv）
+cd backend && uv run uvicorn app.main:app --reload  # 启动开发服务器
+cd backend && uv run pytest -v    # 运行后端测试
 ```

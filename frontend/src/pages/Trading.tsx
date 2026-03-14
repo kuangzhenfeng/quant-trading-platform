@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Select, Button, InputNumber, Radio, Table, message, Space, Statistic, Row, Col } from 'antd';
 import { tradingApi, type PositionData, type AccountData } from '../services/trading';
+import type { ApiError } from '../types/api';
 
 export default function Trading() {
   const [broker, setBroker] = useState('okx');
@@ -13,7 +14,7 @@ export default function Trading() {
   const [positions, setPositions] = useState<PositionData[]>([]);
   const [account, setAccount] = useState<AccountData | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [pos, acc] = await Promise.all([
         tradingApi.getPositions(broker),
@@ -21,14 +22,14 @@ export default function Trading() {
       ]);
       setPositions(pos);
       setAccount(acc);
-    } catch (error) {
+    } catch {
       message.error('加载数据失败');
     }
-  };
+  }, [broker]);
 
   useEffect(() => {
     loadData();
-  }, [broker]);
+  }, [broker, loadData]);
 
   const handlePlaceOrder = async () => {
     setLoading(true);
@@ -43,8 +44,8 @@ export default function Trading() {
       });
       message.success(`下单成功: ${result.order_id}`);
       loadData();
-    } catch (error: any) {
-      message.error(error.response?.data?.detail || '下单失败');
+    } catch (error: unknown) {
+      message.error((error as ApiError).response?.data?.detail || '下单失败');
     } finally {
       setLoading(false);
     }

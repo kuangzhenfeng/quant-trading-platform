@@ -1,21 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Table, Select, Tag } from 'antd';
 import { logsApi } from '../services/logs';
+import type { LogsResponse, LogEntry } from '../types/api';
 
 export default function Logs() {
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [level, setLevel] = useState<string | undefined>();
 
-  const fetchLogs = async () => {
-    const data = await logsApi.getLogs(level);
+  const fetchLogs = useCallback(async () => {
+    const data = await logsApi.getLogs(level) as LogsResponse;
     setLogs(data.logs);
-  };
+  }, [level]);
 
   useEffect(() => {
-    fetchLogs();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchLogs();
     const timer = setInterval(fetchLogs, 5000);
     return () => clearInterval(timer);
-  }, [level]);
+  }, [fetchLogs]);
 
   const columns = [
     {

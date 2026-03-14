@@ -1,29 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Statistic, Table, Tag } from 'antd';
 import { monitorApi } from '../services/monitor';
+import type { StrategiesResponse, PnLData, StatsData, Strategy } from '../types/api';
 import './Monitor.css';
 
 export default function Monitor() {
-  const [pnl, setPnl] = useState<any>(null);
-  const [stats, setStats] = useState<any>(null);
-  const [strategies, setStrategies] = useState<any[]>([]);
+  const [pnl, setPnl] = useState<PnLData | null>(null);
+  const [stats, setStats] = useState<StatsData | null>(null);
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const [pnlData, statsData, strategyData] = await Promise.all([
       monitorApi.getPnL(),
       monitorApi.getStats(),
       monitorApi.getStrategies()
     ]);
-    setPnl(pnlData);
-    setStats(statsData);
-    setStrategies(strategyData.strategies);
-  };
+    setPnl(pnlData as PnLData);
+    setStats(statsData as StatsData);
+    setStrategies((strategyData as StrategiesResponse).strategies);
+  }, []);
 
   useEffect(() => {
-    fetchData();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchData();
     const timer = setInterval(fetchData, 3000);
     return () => clearInterval(timer);
-  }, []);
+  }, [fetchData]);
 
   const positionColumns = [
     { title: '标的', dataIndex: 'symbol', key: 'symbol' },
@@ -65,8 +67,8 @@ export default function Monitor() {
             title="总盈亏"
             value={pnl?.total_pnl || 0}
             precision={2}
-            styles={{ value: { color: (pnl?.total_pnl || 0) >= 0 ? '#3f8600' : '#cf1322' } }}
-            prefix={pnl?.total_pnl >= 0 ? '+' : ''}
+            styles={{ content: { color: (pnl?.total_pnl || 0) >= 0 ? '#3f8600' : '#cf1322' } }}
+            prefix={pnl?.total_pnl && pnl.total_pnl >= 0 ? '+' : ''}
           />
         </Card>
 

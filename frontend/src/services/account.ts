@@ -6,7 +6,7 @@ export interface BrokerConfig {
   id: string;
   broker: string;
   name: string;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   active: boolean;
 }
 

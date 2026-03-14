@@ -5,7 +5,7 @@ const API_BASE = 'http://localhost:8000/api/strategy';
 export interface CreateStrategyRequest {
   strategy_type: string;
   broker: string;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
 }
 
 export const strategyApi = {

@@ -1,22 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Table, Button, Modal, Form, Input, Select, Switch, message } from 'antd';
 import { accountApi, type BrokerConfig } from '../services/account';
+import type { AccountFormValues } from '../types/api';
 
 export default function Account() {
   const [accounts, setAccounts] = useState<BrokerConfig[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
 
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
     const data = await accountApi.list();
     setAccounts(data.accounts);
-  };
-
-  useEffect(() => {
-    fetchAccounts();
   }, []);
 
-  const handleAdd = async (values: any) => {
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchAccounts();
+  }, [fetchAccounts]);
+
+  const handleAdd = async (values: AccountFormValues) => {
     await accountApi.add({
       id: `${values.broker}_${Date.now()}`,
       broker: values.broker,
@@ -56,7 +58,7 @@ export default function Account() {
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: BrokerConfig) => (
+      render: (_: unknown, record: BrokerConfig) => (
         <Button danger size="small" onClick={() => handleRemove(record.id)}>删除</Button>
       )
     }

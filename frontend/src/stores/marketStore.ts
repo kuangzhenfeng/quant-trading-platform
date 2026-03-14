@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Tick } from '../types';
+import type { Tick } from '../types';
 
 interface MarketState {
   ticks: Record<string, Tick>;
