@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, Table, Button, Modal, Form, Input, Select, Switch, message } from 'antd';
-import { accountApi, BrokerConfig } from '../services/account';
+import { accountApi, type BrokerConfig } from '../services/account';
 
 export default function Account() {
   const [accounts, setAccounts] = useState<BrokerConfig[]>([]);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, Select, Button, InputNumber, Radio, Table, message, Space, Statistic, Row, Col } from 'antd';
-import { tradingApi, PositionData, AccountData } from '../services/trading';
+import { tradingApi, type PositionData, type AccountData } from '../services/trading';
 
 export default function Trading() {
   const [broker, setBroker] = useState('okx');
