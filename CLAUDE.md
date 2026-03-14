@@ -76,13 +76,7 @@ quant-trading-platform/
 - pytest 做单元测试
 
 ### Git 规范
-使用 [Conventional Commits](https://www.conventionalcommits.org/)：
-- `feat:` 新功能
-- `fix:` 修复
-- `docs:` 文档
-- `refactor:` 重构
-- `test:` 测试
-- `chore:` 构建/工具
+禁止提交代码
 
 ## 常用命令
 
