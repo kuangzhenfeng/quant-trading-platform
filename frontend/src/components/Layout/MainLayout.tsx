@@ -45,6 +45,15 @@ export default function MainLayout() {
             <Menu.Item key="4">
               <Link to="/strategy" style={{ color: 'var(--text-primary)' }}>策略</Link>
             </Menu.Item>
+            <Menu.Item key="5">
+              <Link to="/monitor" style={{ color: 'var(--text-primary)' }}>监控</Link>
+            </Menu.Item>
+            <Menu.Item key="6">
+              <Link to="/account" style={{ color: 'var(--text-primary)' }}>账户</Link>
+            </Menu.Item>
+            <Menu.Item key="7">
+              <Link to="/logs" style={{ color: 'var(--text-primary)' }}>日志</Link>
+            </Menu.Item>
           </Menu>
         </Sider>
         <Content style={{ padding: '24px', background: 'var(--bg-primary)' }}>

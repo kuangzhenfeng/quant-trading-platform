@@ -3,6 +3,16 @@ from app.adapters.base import BrokerAdapter
 from app.models.schemas import OrderSide, OrderType, OrderData, PositionData, AccountData
 
 
+def get_monitor_service():
+    from app.services.monitor import monitor_service
+    return monitor_service
+
+
+def get_log_service():
+    from app.services.log import log_service
+    return log_service
+
+
 class RiskControl:
     """风控模块"""
 
@@ -43,6 +53,8 @@ class TradingService:
         """下单"""
         adapter = self.adapters.get(broker)
         if not adapter or not adapter.connected:
+            from app.models.schemas import LogLevel
+            get_log_service().log(LogLevel.ERROR, "trading", f"券商 {broker} 未连接")
             return False, f"券商 {broker} 未连接"
 
         # 获取账户信息
@@ -54,10 +66,20 @@ class TradingService:
                 broker, symbol, side, quantity, price, account
             )
             if not passed:
+                from app.models.schemas import LogLevel
+                get_log_service().log(LogLevel.WARNING, "trading", f"风控拦截: {msg}")
                 return False, msg
 
         # 下单
         order_id = await adapter.place_order(symbol, side, order_type, quantity, price)
+
+        # 记录订单
+        order = await adapter.get_order(order_id)
+        get_monitor_service().add_order(order)
+
+        from app.models.schemas import LogLevel
+        get_log_service().log(LogLevel.INFO, "trading", f"下单成功: {broker} {symbol} {side.value} {quantity}")
+
         return True, order_id
 
     async def cancel_order(self, broker: str, order_id: str) -> bool:

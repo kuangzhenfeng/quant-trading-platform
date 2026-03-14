@@ -24,6 +24,11 @@ class StrategyEngine:
         strategy, ctx, _ = self.strategies[strategy_id]
         self.strategies[strategy_id] = (strategy, ctx, True)
         ctx.log(f"策略 {strategy.name} 已启动")
+
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
+        log_service.log(LogLevel.INFO, "strategy", f"策略 {strategy.name} 已启动")
+
         return True
 
     def stop(self, strategy_id: str):
@@ -43,6 +48,10 @@ class StrategyEngine:
                     await strategy.on_tick(data)
                 except Exception as e:
                     ctx.log(f"策略执行错误: {e}")
+
+                    from app.services.log import log_service
+                    from app.models.schemas import LogLevel
+                    log_service.log(LogLevel.ERROR, "strategy", f"策略 {strategy.name} 执行错误: {e}")
 
     def get_logs(self, strategy_id: str) -> list[str]:
         """获取策略日志"""

@@ -43,3 +43,21 @@ class AccountData(BaseModel):
     balance: float
     available: float
     frozen: float = 0.0
+
+class BrokerConfig(BaseModel):
+    id: str
+    broker: str
+    name: str
+    config: dict
+    active: bool = True
+
+class LogLevel(str, Enum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+class LogEntry(BaseModel):
+    timestamp: datetime
+    level: LogLevel
+    source: str
+    message: str

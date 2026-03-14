@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 from app.core.config import settings
-from app.api import websocket, market, trading, strategy
+from app.api import websocket, market, trading, strategy, monitor, account, logs
 from app.services.market import market_service
 from app.services.trading import trading_service
 from app.services.strategy import strategy_engine
@@ -53,6 +53,9 @@ app.include_router(websocket.router)
 app.include_router(market.router)
 app.include_router(trading.router)
 app.include_router(strategy.router)
+app.include_router(monitor.router)
+app.include_router(account.router)
+app.include_router(logs.router)
 
 @app.get("/health")
 async def health_check():

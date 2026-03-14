@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.services.trading import trading_service
+from app.services.trading import trading_service, get_monitor_service
 from app.models.schemas import OrderSide, OrderType
 
 router = APIRouter(prefix="/api/trading", tags=["trading"])
@@ -48,6 +48,7 @@ async def get_order(broker: str, order_id: str):
 async def get_positions(broker: str):
     """获取持仓"""
     positions = await trading_service.get_positions(broker)
+    get_monitor_service().update_positions(broker, positions)
     return {"positions": positions}
 
 

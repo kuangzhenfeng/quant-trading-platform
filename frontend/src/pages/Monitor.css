@@ -1,0 +1,54 @@
+.monitor-container {
+  padding: 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+}
+
+.monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.95);
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+}
+
+.pnl-card {
+  grid-column: span 2;
+}
+
+.table-card {
+  background: rgba(255, 255, 255, 0.95);
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  margin-bottom: 24px;
+}
+
+.table-card .ant-card-head {
+  border-bottom: 2px solid #667eea;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+@media (max-width: 1200px) {
+  .monitor-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .pnl-card {
+    grid-column: span 1;
+  }
+}
