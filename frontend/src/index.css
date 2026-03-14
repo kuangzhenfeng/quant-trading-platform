@@ -1,0 +1,71 @@
+:root {
+  /* 金融终端深色主题 */
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #131824;
+  --bg-tertiary: #1a1f2e;
+  --accent-green: #00ff88;
+  --accent-blue: #00d4ff;
+  --accent-red: #ff3366;
+  --text-primary: #e8eaed;
+  --text-secondary: #9ca3af;
+  --border: #2a3142;
+
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* 数字等宽字体 */
+.mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* 发光效果 */
+.glow-green {
+  color: var(--accent-green);
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+.glow-red {
+  color: var(--accent-red);
+  text-shadow: 0 0 10px rgba(255, 51, 102, 0.5);
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-green);
+}

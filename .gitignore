@@ -1,2 +1,7 @@
 .vscode/
 *.code-workspace
+.DS_Store
+__pycache__/
+.playwright-mcp/
+.pytest_cache/
+.venv/

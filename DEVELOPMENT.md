@@ -1,14 +1,20 @@
 # 开发规划 (Development Roadmap)
 
-## Phase 1：基础架构搭建
+## Phase 1：基础架构搭建 ✅
 
 目标：搭建前后端项目骨架，打通基础通信。
 
-- [ ] 前端项目初始化（React + Vite + TypeScript + Ant Design）
-- [ ] 后端项目初始化（FastAPI + 项目结构 + 依赖管理）
-- [ ] WebSocket 基础通信（前后端连通）
-- [ ] 统一 BrokerAdapter 抽象接口定义（`base.py`）
-- [ ] 基础 UI 框架（布局、导航、路由）
+- [x] 前端项目初始化（React + Vite + TypeScript + Ant Design）
+- [x] 后端项目初始化（FastAPI + 项目结构 + 依赖管理）
+- [x] WebSocket 基础通信（前后端连通）
+- [x] 统一 BrokerAdapter 抽象接口定义（`base.py`）
+- [x] 基础 UI 框架（布局、导航、路由）
+
+**完成日期**: 2026-03-14
+**验证状态**:
+- 后端单元测试：5/5 通过 ✅
+- 前端 Playwright 测试：通过 ✅
+- 服务运行：后端 (8000) + 前端 (5173) ✅
 
 ## Phase 2：行情数据模块
 
