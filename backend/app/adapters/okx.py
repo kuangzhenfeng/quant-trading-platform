@@ -67,22 +67,43 @@ class OKXAdapter(BrokerAdapter):
         quantity: float,
         price: float | None = None
     ) -> str:
-        """下单"""
-        # TODO: 实现下单功能
-        raise NotImplementedError("Trading not implemented yet")
+        """下单（Mock 实现）"""
+        import uuid
+        order_id = f"okx_{uuid.uuid4().hex[:16]}"
+        return order_id
 
     async def cancel_order(self, order_id: str) -> bool:
-        """撤单"""
-        raise NotImplementedError("Trading not implemented yet")
+        """撤单（Mock 实现）"""
+        return True
 
     async def get_order(self, order_id: str) -> OrderData:
-        """查询订单"""
-        raise NotImplementedError("Trading not implemented yet")
+        """查询订单（Mock 实现）"""
+        return OrderData(
+            order_id=order_id,
+            symbol="BTC-USDT",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            quantity=0.01,
+            price=70000.0,
+            status=OrderStatus.FILLED
+        )
 
     async def get_account(self) -> AccountData:
-        """获取账户信息"""
-        raise NotImplementedError("Trading not implemented yet")
+        """获取账户信息（Mock 实现）"""
+        return AccountData(
+            broker="okx",
+            balance=100000.0,
+            available=95000.0,
+            frozen=5000.0
+        )
 
     async def get_positions(self) -> List[PositionData]:
-        """获取持仓列表"""
-        raise NotImplementedError("Trading not implemented yet")
+        """获取持仓列表（Mock 实现）"""
+        return [
+            PositionData(
+                symbol="BTC-USDT",
+                quantity=0.5,
+                avg_price=68000.0,
+                unrealized_pnl=1500.0
+            )
+        ]

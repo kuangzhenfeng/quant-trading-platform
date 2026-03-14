@@ -49,21 +49,43 @@ class MoomooAdapter(BrokerAdapter):
         quantity: float,
         price: float | None = None
     ) -> str:
-        """下单"""
-        raise NotImplementedError("Trading not implemented yet")
+        """下单（Mock 实现）"""
+        import uuid
+        order_id = f"mm_{uuid.uuid4().hex[:16]}"
+        return order_id
 
     async def cancel_order(self, order_id: str) -> bool:
-        """撤单"""
-        raise NotImplementedError("Trading not implemented yet")
+        """撤单（Mock 实现）"""
+        return True
 
     async def get_order(self, order_id: str) -> OrderData:
-        """查询订单"""
-        raise NotImplementedError("Trading not implemented yet")
+        """查询订单（Mock 实现）"""
+        return OrderData(
+            order_id=order_id,
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            quantity=10.0,
+            price=150.00,
+            status=OrderStatus.FILLED
+        )
 
     async def get_account(self) -> AccountData:
-        """获取账户信息"""
-        raise NotImplementedError("Trading not implemented yet")
+        """获取账户信息（Mock 实现）"""
+        return AccountData(
+            broker="moomoo",
+            balance=200000.0,
+            available=180000.0,
+            frozen=20000.0
+        )
 
     async def get_positions(self) -> List[PositionData]:
-        """获取持仓列表"""
-        raise NotImplementedError("Trading not implemented yet")
+        """获取持仓列表（Mock 实现）"""
+        return [
+            PositionData(
+                symbol="AAPL",
+                quantity=50.0,
+                avg_price=148.50,
+                unrealized_pnl=87.5
+            )
+        ]
