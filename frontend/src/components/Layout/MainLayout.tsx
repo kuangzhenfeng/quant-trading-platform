@@ -37,6 +37,9 @@ export default function MainLayout() {
               <Link to="/" style={{ color: 'var(--text-primary)' }}>仪表盘</Link>
             </Menu.Item>
             <Menu.Item key="2">
+              <Link to="/market" style={{ color: 'var(--text-primary)' }}>行情看板</Link>
+            </Menu.Item>
+            <Menu.Item key="3">
               <Link to="/trading" style={{ color: 'var(--text-primary)' }}>交易</Link>
             </Menu.Item>
           </Menu>

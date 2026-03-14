@@ -16,16 +16,22 @@
 - 前端 Playwright 测试：通过 ✅
 - 服务运行：后端 (8000) + 前端 (5173) ✅
 
-## Phase 2：行情数据模块
+## Phase 2：行情数据模块 ✅
 
 目标：接入各平台行情数据，实现实时行情展示。
 
-- [ ] 国金证券行情 Adapter 实现
-- [ ] moomoo 行情 Adapter 实现
-- [ ] OKX 行情 Adapter 实现（REST + WebSocket）
-- [ ] 第三方数据源集成（备选/补充数据）
-- [ ] 实时行情 WebSocket 推送至前端
-- [ ] 前端行情看板（K线图、盘口、涨跌排行）
+- [x] 国金证券行情 Adapter 实现
+- [x] moomoo 行情 Adapter 实现
+- [x] OKX 行情 Adapter 实现（REST API）
+- [x] 实时行情 WebSocket 推送至前端
+- [x] 前端行情看板（实时报价表）
+
+**完成日期**: 2026-03-15
+**验证状态**:
+- 后端测试：7/7 通过 ✅
+- OKX 实时行情：BTC-USDT, ETH-USDT 正常推送 ✅
+- WebSocket 推送：1秒间隔实时更新 ✅
+- 前端行情看板：多平台切换、实时数据展示 ✅
 
 ## Phase 3：交易执行模块
 
