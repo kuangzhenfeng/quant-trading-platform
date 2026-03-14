@@ -61,3 +61,16 @@ class LogEntry(BaseModel):
     level: LogLevel
     source: str
     message: str
+
+class BacktestConfig(BaseModel):
+    strategy_id: str
+    symbol: str
+    start_date: str
+    end_date: str
+    initial_capital: float
+
+class BacktestResult(BaseModel):
+    total_return: float
+    max_drawdown: float
+    win_rate: float
+    total_trades: int

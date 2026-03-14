@@ -54,6 +54,9 @@ export default function MainLayout() {
             <Menu.Item key="7">
               <Link to="/logs" style={{ color: 'var(--text-primary)' }}>日志</Link>
             </Menu.Item>
+            <Menu.Item key="8">
+              <Link to="/backtest" style={{ color: 'var(--text-primary)' }}>回测</Link>
+            </Menu.Item>
           </Menu>
         </Sider>
         <Content style={{ padding: '24px', background: 'var(--bg-primary)' }}>

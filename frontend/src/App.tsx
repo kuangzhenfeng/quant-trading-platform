@@ -7,6 +7,7 @@ import Strategy from './pages/Strategy';
 import Monitor from './pages/Monitor';
 import Account from './pages/Account';
 import Logs from './pages/Logs';
+import Backtest from './pages/Backtest';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="monitor" element={<Monitor />} />
           <Route path="account" element={<Account />} />
           <Route path="logs" element={<Logs />} />
+          <Route path="backtest" element={<Backtest />} />
         </Route>
       </Routes>
     </BrowserRouter>
