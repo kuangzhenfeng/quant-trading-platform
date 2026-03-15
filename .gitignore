@@ -8,3 +8,4 @@ __pycache__/
 .env
 backend/users.json
 backend/accounts.json
+backend/quant_trading.db

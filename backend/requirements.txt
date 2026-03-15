@@ -9,3 +9,6 @@ httpx==0.26.0
 futu-api
 bcrypt==4.1.2
 PyJWT==2.8.0
+sqlalchemy[asyncio]==2.0.25
+asyncpg==0.29.0
+aiosqlite==0.19.0

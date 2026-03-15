@@ -6,6 +6,7 @@ import asyncio
 import traceback
 from app.core.config import settings, TradingMode
 from app.core.init_data import init_data_from_env
+from app.core.init_db import init_database, migrate_from_json
 from app.api import websocket, market, trading, strategy, monitor, account, logs, backtest, auth, users, system
 from app.services.market import market_service
 from app.services.trading import trading_service
@@ -17,8 +18,12 @@ from app.middleware.auth_middleware import AuthMiddleware
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
+    # 初始化数据库
+    await init_database()
+    await migrate_from_json()
+
     # 从环境变量初始化数据
-    init_data_from_env()
+    await init_data_from_env()
     # 使用工厂方法创建适配器，配置根据模式自动选择
     try:
         okx_adapter = AdapterFactory.create(
@@ -69,6 +74,9 @@ async def lifespan(app: FastAPI):
     strategy_engine.trading_service = trading_service
     strategy_engine.market_service = market_service
     market_service.strategy_callback = strategy_engine.on_market_data
+
+    # 从数据库恢复策略配置
+    await strategy_engine.restore_from_db()
 
     task = asyncio.create_task(market_service.start_push())
     yield

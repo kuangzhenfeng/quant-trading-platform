@@ -28,7 +28,7 @@ async def create_strategy(req: CreateStrategyRequest):
     except ValueError as e:
         raise HTTPException(400, str(e))
 
-    strategy_engine.register(strategy_id, strategy, req.broker)
+    await strategy_engine.register(strategy_id, strategy, req.broker, req.params)
     return {"strategy_id": strategy_id}
 
 
@@ -44,7 +44,7 @@ async def start_strategy(strategy_id: str):
 @router.post("/{strategy_id}/stop")
 async def stop_strategy(strategy_id: str):
     """停止策略"""
-    success = strategy_engine.stop(strategy_id)
+    success = await strategy_engine.stop(strategy_id)
     if not success:
         raise HTTPException(404, "策略不存在")
     return {"status": "stopped"}

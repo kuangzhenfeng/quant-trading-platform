@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     guojin_live_account_id: str = ""
     guojin_live_password: str = ""
 
+    # 数据库配置
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/quant_trading"
+
     # 认证配置
     AUTH_ENABLED: bool = False
     AUTH_DEFAULT_USERNAME: str = "admin"
