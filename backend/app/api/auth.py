@@ -1,10 +1,22 @@
 """认证 API 端点"""
-from fastapi import APIRouter, HTTPException, Request
-from app.models.user import UserLogin, UserCreate, Token, UserInfo
+from fastapi import APIRouter, HTTPException, Request, Depends, Header
+from app.models.user import UserLogin, UserCreate, Token, UserInfo, User
 from app.services.user import authenticate_user, create_user, get_user
-from app.core.security import create_access_token
+from app.core.security import create_access_token, verify_token
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def get_current_user_dep(request: Request) -> User:
+    """依赖函数：获取当前用户"""
+    if not hasattr(request.state, "user"):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user = get_user(request.state.user)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user
 
 
 @router.post("/login", response_model=Token)
@@ -29,13 +41,6 @@ async def register(user_create: UserCreate):
 
 
 @router.get("/me", response_model=UserInfo)
-async def get_current_user(request: Request):
+async def get_current_user_info(user: User = Depends(get_current_user_dep)):
     """获取当前用户信息"""
-    if not hasattr(request.state, "user"):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    user = get_user(request.state.user)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     return UserInfo(username=user.username, created_at=user.created_at)

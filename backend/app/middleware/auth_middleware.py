@@ -15,8 +15,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        # 跳过公共端点
-        if request.url.path.startswith("/api/auth") or request.url.path == "/health":
+        # 定义公共端点（完全匹配）
+        public_endpoints = {"/health", "/api/auth/login", "/api/auth/register", "/api/trading/mode"}
+
+        # 如果是公共端点，直接放行
+        if request.url.path in public_endpoints:
             return await call_next(request)
 
         if settings.AUTH_ENABLED:

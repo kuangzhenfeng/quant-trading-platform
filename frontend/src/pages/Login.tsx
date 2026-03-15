@@ -13,10 +13,10 @@ export default function Login() {
     try {
       await authService.login(values.username, values.password);
       message.success('登录成功');
-      navigate('/');
+      window.location.href = '/';
     } catch (error) {
+      console.error('登录错误:', error);
       message.error('登录失败，请检查用户名和密码');
-    } finally {
       setLoading(false);
     }
   };

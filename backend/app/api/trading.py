@@ -81,7 +81,14 @@ async def get_positions(broker: str):
 @router.get("/account/{broker}")
 async def get_account(broker: str):
     """获取账户信息"""
-    account = await trading_service.get_account(broker)
-    if not account:
-        raise HTTPException(status_code=404, detail="账户不存在")
-    return account
+    try:
+        account = await trading_service.get_account(broker)
+        if not account:
+            raise HTTPException(status_code=404, detail="账户不存在")
+        return account
+    except HTTPException:
+        raise
+    except Exception as e:
+        # 连接失败等异常，返回空账户数据而非500
+        print(f"[WARNING] 获取 {broker} 账户信息失败: {e}")
+        return {"broker": broker, "balance": 0, "available": 0, "frozen": 0}

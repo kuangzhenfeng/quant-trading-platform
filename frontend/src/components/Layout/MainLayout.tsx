@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Layout, Tooltip, Select, Button } from 'antd';
+import { Layout, Tooltip, Select, Button, message, Dropdown } from 'antd';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -14,10 +14,13 @@ import {
   BankOutlined,
   LogoutOutlined,
   TeamOutlined,
+  ReloadOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { useTradingModeStore } from '../../stores/tradingModeStore';
 import { useBrokerStore } from '../../stores/brokerStore';
 import { authService } from '../../services/auth';
+import { systemApi } from '../../services/system';
 
 const { Content } = Layout;
 
@@ -89,12 +92,57 @@ export default function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const [username, setUsername] = useState('');
   const { broker, setBroker } = useBrokerStore();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        setUsername(user.username);
+      } catch (error) {
+        console.error('获取用户信息失败', error);
+      }
+    };
+    if (import.meta.env.VITE_AUTH_ENABLED === 'true') {
+      fetchUser();
+    }
+  }, []);
 
   const handleLogout = () => {
     authService.logout();
     navigate('/login');
   };
+
+  const handleRestart = async () => {
+    setRestarting(true);
+    try {
+      await systemApi.restart();
+      message.success('服务正在重启，请稍候...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    } catch (error) {
+      message.error('重启失败');
+      setRestarting(false);
+    }
+  };
+
+  const userMenuItems = [
+    {
+      key: 'users',
+      icon: <TeamOutlined />,
+      label: '用户管理',
+      onClick: () => navigate('/users'),
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出',
+      onClick: handleLogout,
+    },
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh', background: 'var(--bg-void)' }}>
@@ -178,6 +226,21 @@ export default function MainLayout() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <LiveClock />
+          <Tooltip title="重启服务">
+            <Button
+              icon={<ReloadOutlined spin={restarting} />}
+              onClick={handleRestart}
+              loading={restarting}
+              size="small"
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--text-secondary)',
+                borderColor: 'var(--border-default)',
+              }}
+            />
+          </Tooltip>
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -196,20 +259,21 @@ export default function MainLayout() {
             CONNECTED
           </div>
           {import.meta.env.VITE_AUTH_ENABLED === 'true' && (
-            <Button
-              icon={<LogoutOutlined />}
-              onClick={handleLogout}
-              size="small"
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 12,
-                fontWeight: 500,
-                color: 'var(--text-secondary)',
-                borderColor: 'var(--border-default)',
-              }}
-            >
-              退出
-            </Button>
+            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+              <Button
+                icon={<UserOutlined />}
+                size="small"
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: 'var(--text-secondary)',
+                  borderColor: 'var(--border-default)',
+                }}
+              >
+                {username || 'User'}
+              </Button>
+            </Dropdown>
           )}
         </div>
       </header>

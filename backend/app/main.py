@@ -1,9 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import asyncio
+import traceback
 from app.core.config import settings, TradingMode
-from app.api import websocket, market, trading, strategy, monitor, account, logs, backtest, auth, users
+from app.core.init_data import init_data_from_env
+from app.api import websocket, market, trading, strategy, monitor, account, logs, backtest, auth, users, system
 from app.services.market import market_service
 from app.services.trading import trading_service
 from app.services.strategy import strategy_engine
@@ -14,6 +17,8 @@ from app.middleware.auth_middleware import AuthMiddleware
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
+    # 从环境变量初始化数据
+    init_data_from_env()
     # 使用工厂方法创建适配器，配置根据模式自动选择
     try:
         okx_adapter = AdapterFactory.create(
@@ -83,8 +88,20 @@ app.add_middleware(
 
 app.add_middleware(AuthMiddleware)
 
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理器，确保 500 错误也带正确的 CORS 头"""
+    print(f"[ERROR] 未捕获异常: {request.url.path} - {exc}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "内部服务器错误"},
+    )
+
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(system.router)
 app.include_router(websocket.router)
 app.include_router(market.router)
 app.include_router(trading.router)

@@ -8,6 +8,7 @@ import type { User } from '../types/api';
 export default function Users() {
   const [users, setUsers] = useState<User[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [currentUsername, setCurrentUsername] = useState('');
   const [form] = Form.useForm();
 
   const fetchUsers = useCallback(async () => {
@@ -17,6 +18,11 @@ export default function Users() {
 
   useEffect(() => {
     void fetchUsers();
+    const fetchCurrentUser = async () => {
+      const user = await authService.getCurrentUser();
+      setCurrentUsername(user.username);
+    };
+    void fetchCurrentUser();
   }, [fetchUsers]);
 
   const handleAdd = async (values: { username: string; password: string }) => {
@@ -30,7 +36,7 @@ export default function Users() {
   const handleRemove = async (username: string) => {
     await userApi.delete(username);
     message.success('用户删除成功');
-    fetchUsers();
+    await fetchUsers();
   };
 
   const columns = [
@@ -69,24 +75,29 @@ export default function Users() {
         </span>
       ),
       key: 'action',
-      render: (_: unknown, record: User) => (
-        <Button
-          size="small"
-          onClick={() => handleRemove(record.username)}
-          style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 12,
-            fontWeight: 500,
-            color: 'var(--loss)',
-            background: 'color-mix(in srgb, var(--loss) 8%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--loss) 25%, transparent)',
-            borderRadius: 'var(--radius-sm)',
-            letterSpacing: '0.3px',
-          }}
-        >
-          删除
-        </Button>
-      ),
+      render: (_: unknown, record: User) => {
+        const isCurrentUser = record.username === currentUsername;
+        return (
+          <Button
+            size="small"
+            onClick={() => handleRemove(record.username)}
+            disabled={isCurrentUser}
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: 12,
+              fontWeight: 500,
+              color: isCurrentUser ? 'var(--text-muted)' : 'var(--loss)',
+              background: isCurrentUser ? 'var(--bg-elevated)' : 'color-mix(in srgb, var(--loss) 8%, transparent)',
+              border: `1px solid ${isCurrentUser ? 'var(--border-default)' : 'color-mix(in srgb, var(--loss) 25%, transparent)'}`,
+              borderRadius: 'var(--radius-sm)',
+              letterSpacing: '0.3px',
+              cursor: isCurrentUser ? 'not-allowed' : 'pointer',
+            }}
+          >
+            删除
+          </Button>
+        );
+      },
     },
   ];
 

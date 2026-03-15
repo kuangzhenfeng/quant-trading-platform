@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { App } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, WalletOutlined, DollarOutlined, LockOutlined } from '@ant-design/icons';
 import { tradingApi, type AccountData } from '../services/trading';
@@ -8,13 +8,19 @@ export default function Dashboard() {
   const { message } = App.useApp();
   const { broker } = useBrokerStore();
   const [account, setAccount] = useState<AccountData | null>(null);
+  const hasErrorRef = useRef(false);
 
   const loadAccount = useCallback(async () => {
     try {
       const acc = await tradingApi.getAccount(broker);
       setAccount(acc);
+      hasErrorRef.current = false;
     } catch {
-      message.error('加载账户数据失败');
+      // 仅在首次失败时提示，避免轮询产生重复错误消息
+      if (!hasErrorRef.current) {
+        message.error('加载账户数据失败');
+        hasErrorRef.current = true;
+      }
     }
   }, [broker, message]);
 
