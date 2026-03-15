@@ -1,10 +1,18 @@
 from collections import deque
 from app.strategies.base import Strategy
+from app.strategies.registry import StrategyRegistry
 from app.models.schemas import TickData
 
 
+@StrategyRegistry.register("ma")
 class MAStrategy(Strategy):
     """均线策略"""
+    PARAMS_SCHEMA = {
+        "symbol": {"type": "string", "default": "BTC-USDT", "label": "交易标的"},
+        "short_period": {"type": "number", "default": 5, "label": "短周期"},
+        "long_period": {"type": "number", "default": 20, "label": "长周期"},
+        "quantity": {"type": "number", "default": 0.01, "label": "交易数量"}
+    }
     def on_init(self):
         self.short_period = self.params.get("short_period", 5)
         self.long_period = self.params.get("long_period", 20)

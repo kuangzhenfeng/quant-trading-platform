@@ -43,9 +43,18 @@ const CARD_STYLE: React.CSSProperties = {
 
 export default function Strategy() {
   const [broker, setBroker] = useState('okx');
+  const [strategyType, setStrategyType] = useState('ma');
   const [symbol, setSymbol] = useState('BTC-USDT');
   const [shortPeriod, setShortPeriod] = useState(5);
   const [longPeriod, setLongPeriod] = useState(20);
+  const [fastPeriod, setFastPeriod] = useState(12);
+  const [slowPeriod, setSlowPeriod] = useState(26);
+  const [signalPeriod, setSignalPeriod] = useState(9);
+  const [period, setPeriod] = useState(20);
+  const [stdDev, setStdDev] = useState(2);
+  const [rsiPeriod, setRsiPeriod] = useState(14);
+  const [oversold, setOversold] = useState(30);
+  const [overbought, setOverbought] = useState(70);
   const [quantity, setQuantity] = useState(0.01);
   const [strategyId, setStrategyId] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
@@ -54,10 +63,22 @@ export default function Strategy() {
   const handleCreate = async () => {
     setLoading(true);
     try {
+      let params: Record<string, unknown> = { symbol, quantity };
+
+      if (strategyType === 'ma') {
+        params = { ...params, short_period: shortPeriod, long_period: longPeriod };
+      } else if (strategyType === 'macd') {
+        params = { ...params, fast_period: fastPeriod, slow_period: slowPeriod, signal_period: signalPeriod };
+      } else if (strategyType === 'bollinger') {
+        params = { ...params, period, std_dev: stdDev };
+      } else if (strategyType === 'rsi') {
+        params = { ...params, period: rsiPeriod, oversold, overbought };
+      }
+
       const result = await strategyApi.create({
-        strategy_type: 'ma',
+        strategy_type: strategyType,
         broker,
-        params: { symbol, short_period: shortPeriod, long_period: longPeriod, quantity }
+        params
       });
       setStrategyId(result.strategy_id);
       message.success('策略创建成功');
@@ -121,7 +142,10 @@ export default function Strategy() {
         {/* Section Header */}
         <div style={SECTION_HEADER_STYLE}>
           <RocketOutlined style={{ color: 'var(--cyan-400)', fontSize: 15 }} />
-          均线策略
+          {strategyType === 'ma' && '均线策略'}
+          {strategyType === 'macd' && 'MACD策略'}
+          {strategyType === 'bollinger' && '布林带策略'}
+          {strategyType === 'rsi' && 'RSI策略'}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -147,6 +171,20 @@ export default function Strategy() {
                 />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={FIELD_LABEL_STYLE}>策略</span>
+                <Select
+                  value={strategyType}
+                  onChange={setStrategyType}
+                  style={{ width: 140 }}
+                  options={[
+                    { label: 'MA策略', value: 'ma' },
+                    { label: 'MACD策略', value: 'macd' },
+                    { label: '布林带策略', value: 'bollinger' },
+                    { label: 'RSI策略', value: 'rsi' },
+                  ]}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={FIELD_LABEL_STYLE}>标的</span>
                 <Select
                   value={symbol}
@@ -164,31 +202,122 @@ export default function Strategy() {
           {/* Divider */}
           <div style={{ height: 1, background: 'var(--border-subtle)' }} />
 
-          {/* Row 2: MA Parameters */}
+          {/* Row 2: Strategy Parameters */}
           <div>
             <div style={{ ...FIELD_LABEL_STYLE, marginBottom: 12 }}>
               <SettingOutlined style={{ marginRight: 5 }} />
               策略参数
             </div>
             <Space wrap size={16}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={FIELD_LABEL_STYLE}>短周期</span>
-                <InputNumber
-                  value={shortPeriod}
-                  onChange={v => setShortPeriod(v || 5)}
-                  min={1}
-                  style={{ width: 100 }}
-                />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={FIELD_LABEL_STYLE}>长周期</span>
-                <InputNumber
-                  value={longPeriod}
-                  onChange={v => setLongPeriod(v || 20)}
-                  min={1}
-                  style={{ width: 100 }}
-                />
-              </div>
+              {strategyType === 'ma' && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={FIELD_LABEL_STYLE}>短周期</span>
+                    <InputNumber
+                      value={shortPeriod}
+                      onChange={v => setShortPeriod(v || 5)}
+                      min={1}
+                      style={{ width: 100 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={FIELD_LABEL_STYLE}>长周期</span>
+                    <InputNumber
+                      value={longPeriod}
+                      onChange={v => setLongPeriod(v || 20)}
+                      min={1}
+                      style={{ width: 100 }}
+                    />
+                  </div>
+                </>
+              )}
+              {strategyType === 'macd' && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={FIELD_LABEL_STYLE}>快线周期</span>
+                    <InputNumber
+                      value={fastPeriod}
+                      onChange={v => setFastPeriod(v || 12)}
+                      min={1}
+                      style={{ width: 100 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={FIELD_LABEL_STYLE}>慢线周期</span>
+                    <InputNumber
+                      value={slowPeriod}
+                      onChange={v => setSlowPeriod(v || 26)}
+                      min={1}
+                      style={{ width: 100 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={FIELD_LABEL_STYLE}>信号线周期</span>
+                    <InputNumber
+                      value={signalPeriod}
+                      onChange={v => setSignalPeriod(v || 9)}
+                      min={1}
+                      style={{ width: 100 }}
+                    />
+                  </div>
+                </>
+              )}
+              {strategyType === 'bollinger' && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={FIELD_LABEL_STYLE}>周期</span>
+                    <InputNumber
+                      value={period}
+                      onChange={v => setPeriod(v || 20)}
+                      min={1}
+                      style={{ width: 100 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={FIELD_LABEL_STYLE}>标准差倍数</span>
+                    <InputNumber
+                      value={stdDev}
+                      onChange={v => setStdDev(v || 2)}
+                      min={0}
+                      step={0.1}
+                      style={{ width: 100 }}
+                    />
+                  </div>
+                </>
+              )}
+              {strategyType === 'rsi' && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={FIELD_LABEL_STYLE}>RSI周期</span>
+                    <InputNumber
+                      value={rsiPeriod}
+                      onChange={v => setRsiPeriod(v || 14)}
+                      min={1}
+                      style={{ width: 100 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={FIELD_LABEL_STYLE}>超卖阈值</span>
+                    <InputNumber
+                      value={oversold}
+                      onChange={v => setOversold(v || 30)}
+                      min={0}
+                      max={100}
+                      style={{ width: 100 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={FIELD_LABEL_STYLE}>超买阈值</span>
+                    <InputNumber
+                      value={overbought}
+                      onChange={v => setOverbought(v || 70)}
+                      min={0}
+                      max={100}
+                      style={{ width: 100 }}
+                    />
+                  </div>
+                </>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={FIELD_LABEL_STYLE}>数量</span>
                 <InputNumber

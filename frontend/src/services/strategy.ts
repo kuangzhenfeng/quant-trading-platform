@@ -9,6 +9,11 @@ export interface CreateStrategyRequest {
 }
 
 export const strategyApi = {
+  getTypes: async () => {
+    const { data } = await axios.get(`${API_BASE}/types`);
+    return data.types;
+  },
+
   create: async (req: CreateStrategyRequest) => {
     const { data } = await axios.post(`${API_BASE}/create`, req);
     return data;

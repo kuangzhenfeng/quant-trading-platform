@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from app.services.backtest import backtest_engine
 from app.models.schemas import BacktestConfig
-from app.strategies.ma_strategy import MAStrategy
+from app.strategies.registry import StrategyRegistry
 
 router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
@@ -19,15 +19,21 @@ async def run_backtest(config: BacktestConfig):
     支持的K线周期 (interval):
     - 1m, 5m, 15m, 1H, 1D
     """
-    strategy = MAStrategy(
-        name=config.strategy_id,
-        params={
-            "symbol": config.symbol,
-            "short_period": 5,
-            "long_period": 20,
-            "quantity": 1.0
-        }
-    )
+    # 从 strategy_id 提取策略类型（格式：ma_strategy -> ma）
+    strategy_type = config.strategy_id.replace('_strategy', '')
+
+    try:
+        strategy = StrategyRegistry.create(
+            strategy_type,
+            config.strategy_id,
+            {
+                "symbol": config.symbol,
+                "quantity": 1.0
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
     backtest_id = await backtest_engine.run_backtest(config, strategy)
     return {"backtest_id": backtest_id}
 

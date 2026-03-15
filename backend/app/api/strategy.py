@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.services.strategy import strategy_engine
-from app.strategies.ma_strategy import MAStrategy
+from app.strategies.registry import StrategyRegistry
 
 router = APIRouter(prefix="/api/strategy", tags=["strategy"])
 
@@ -12,15 +12,21 @@ class CreateStrategyRequest(BaseModel):
     params: dict
 
 
+@router.get("/types")
+async def get_strategy_types():
+    """获取所有策略类型及参数定义"""
+    return {"types": StrategyRegistry.get_all_types()}
+
+
 @router.post("/create")
 async def create_strategy(req: CreateStrategyRequest):
     """创建策略"""
     strategy_id = f"{req.strategy_type}_{req.broker}"
 
-    if req.strategy_type == "ma":
-        strategy = MAStrategy("均线策略", req.params)
-    else:
-        raise HTTPException(400, "不支持的策略类型")
+    try:
+        strategy = StrategyRegistry.create(req.strategy_type, f"{req.strategy_type}策略", req.params)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
     strategy_engine.register(strategy_id, strategy, req.broker)
     return {"strategy_id": strategy_id}
