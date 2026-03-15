@@ -74,7 +74,7 @@ class TradingService:
         order_id = await adapter.place_order(symbol, side, order_type, quantity, price)
 
         # 记录订单
-        order = await adapter.get_order(order_id)
+        order = await adapter.get_order(order_id, symbol)
         get_monitor_service().add_order(order)
 
         from app.models.schemas import LogLevel

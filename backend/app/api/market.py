@@ -1,4 +1,4 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from typing import List
 from app.websocket.manager import manager
 from app.services.market import market_service
@@ -6,12 +6,26 @@ from app.adapters.okx import OKXAdapter
 from app.adapters.guojin import GuojinAdapter
 from app.adapters.moomoo import MoomooAdapter
 
-router = APIRouter()
+router = APIRouter(prefix="/api/market", tags=["market"])
 
 # 初始化 Adapters
 market_service.register_adapter("okx", OKXAdapter({}))
 market_service.register_adapter("guojin", GuojinAdapter({}))
 market_service.register_adapter("moomoo", MoomooAdapter({}))
+
+
+@router.get("/tick/{symbol}")
+async def get_tick(symbol: str, broker: str = "okx"):
+    """获取行情快照"""
+    adapter = market_service.adapters.get(broker)
+    if not adapter:
+        raise HTTPException(status_code=404, detail="券商不存在")
+
+    if not adapter.connected:
+        await adapter.connect()
+
+    tick = await adapter.get_tick(symbol)
+    return tick
 
 
 @router.websocket("/ws/market/{client_id}")

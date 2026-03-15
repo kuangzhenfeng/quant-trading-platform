@@ -16,6 +16,10 @@ class GuojinAdapter(BrokerAdapter):
         self.account_id = config.get("account_id", "")
         self.password = config.get("password", "")
 
+        # TODO: 国金证券暂无官方 Python SDK，保持 mock 模式
+        # 未来可接入第三方库或自行实现 API 调用
+        self.use_real_api = False
+
     async def connect(self) -> bool:
         """建立连接"""
         await asyncio.sleep(0.1)
@@ -59,7 +63,7 @@ class GuojinAdapter(BrokerAdapter):
         """撤单（Mock 实现）"""
         return True
 
-    async def get_order(self, order_id: str) -> OrderData:
+    async def get_order(self, order_id: str, symbol: str | None = None) -> OrderData:
         """查询订单（Mock 实现）"""
         return OrderData(
             order_id=order_id,

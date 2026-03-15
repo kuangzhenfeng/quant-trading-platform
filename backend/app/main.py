@@ -16,17 +16,39 @@ from app.adapters.moomoo import MoomooAdapter
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 注册交易适配器
-    okx_adapter = OKXAdapter({})
-    guojin_adapter = GuojinAdapter({})
-    moomoo_adapter = MoomooAdapter({})
+    okx_config = {
+        "api_key": settings.okx_api_key,
+        "secret_key": settings.okx_secret_key,
+        "passphrase": settings.okx_passphrase,
+    }
+    guojin_config = {
+        "account_id": settings.guojin_account_id,
+        "password": settings.guojin_password,
+    }
+    moomoo_config = {}
+    if settings.moomoo_host:
+        moomoo_config["host"] = settings.moomoo_host
+    if settings.moomoo_port:
+        moomoo_config["port"] = settings.moomoo_port
+
+    okx_adapter = OKXAdapter(okx_config)
+    guojin_adapter = GuojinAdapter(guojin_config)
+    moomoo_adapter = MoomooAdapter(moomoo_config)
 
     await okx_adapter.connect()
     await guojin_adapter.connect()
-    await moomoo_adapter.connect()
+    try:
+        await asyncio.wait_for(moomoo_adapter.connect(), timeout=5.0)
+    except (asyncio.TimeoutError, Exception) as e:
+        print(f"[WARNING] moomoo adapter connection failed: {e}")
 
     trading_service.register_adapter("okx", okx_adapter)
     trading_service.register_adapter("guojin", guojin_adapter)
     trading_service.register_adapter("moomoo", moomoo_adapter)
+
+    market_service.register_adapter("okx", okx_adapter)
+    market_service.register_adapter("guojin", guojin_adapter)
+    market_service.register_adapter("moomoo", moomoo_adapter)
 
     # 初始化策略引擎
     strategy_engine.trading_service = trading_service

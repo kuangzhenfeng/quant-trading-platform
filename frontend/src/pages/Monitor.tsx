@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Statistic, Table, Tag } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import { monitorApi } from '../services/monitor';
 import type { StrategiesResponse, PnLData, StatsData, Strategy } from '../types/api';
 import './Monitor.css';
@@ -30,13 +31,17 @@ export default function Monitor() {
   const positionColumns = [
     { title: '标的', dataIndex: 'symbol', key: 'symbol' },
     { title: '数量', dataIndex: 'quantity', key: 'quantity' },
-    { title: '均价', dataIndex: 'avg_price', key: 'avg_price', render: (v: number) => v.toFixed(2) },
+    { title: '均价', dataIndex: 'avg_price', key: 'avg_price', render: (v: number) => `¥${v.toFixed(2)}` },
     {
       title: '浮动盈亏',
       dataIndex: 'unrealized_pnl',
       key: 'unrealized_pnl',
       render: (v: number) => (
-        <span style={{ color: v >= 0 ? '#52c41a' : '#ff4d4f' }}>
+        <span style={{
+          color: v >= 0 ? '#00ff9d' : '#ff4757',
+          fontWeight: 600,
+          textShadow: v >= 0 ? '0 0 10px #00ff9d40' : '0 0 10px #ff475740'
+        }}>
           {v >= 0 ? '+' : ''}{v.toFixed(2)}
         </span>
       )
@@ -51,37 +56,61 @@ export default function Monitor() {
       dataIndex: 'running',
       key: 'running',
       render: (running: boolean) => (
-        <Tag color={running ? 'green' : 'default'}>
-          {running ? '运行中' : '已停止'}
+        <Tag color={running ? 'success' : 'default'} style={{
+          background: running ? 'rgba(0, 255, 157, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+          color: running ? '#00ff9d' : '#94a3b8',
+          borderColor: running ? 'rgba(0, 255, 157, 0.3)' : 'rgba(148, 163, 184, 0.3)'
+        }}>
+          {running ? '● 运行中' : '○ 已停止'}
         </Tag>
       )
     },
     { title: '日志数', dataIndex: 'log_count', key: 'log_count' }
   ];
 
+  const pnlValue = pnl?.total_pnl || 0;
+  const isPositive = pnlValue >= 0;
+
   return (
     <div className="monitor-container">
       <div className="monitor-grid">
         <Card className="stat-card pnl-card">
           <Statistic
-            title="总盈亏"
-            value={pnl?.total_pnl || 0}
+            title="总盈亏 / Total P&L"
+            value={Math.abs(pnlValue)}
             precision={2}
-            styles={{ content: { color: (pnl?.total_pnl || 0) >= 0 ? '#3f8600' : '#cf1322' } }}
-            prefix={pnl?.total_pnl && pnl.total_pnl >= 0 ? '+' : ''}
+            styles={{
+              value: {
+                color: isPositive ? '#00ff9d' : '#ff4757',
+                textShadow: `0 0 20px ${isPositive ? '#00ff9d' : '#ff4757'}40`
+              }
+            }}
+            prefix={isPositive ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
           />
         </Card>
 
         <Card className="stat-card">
-          <Statistic title="持仓数" value={pnl?.position_count || 0} />
+          <Statistic
+            title="持仓数 / Positions"
+            value={pnl?.position_count || 0}
+            styles={{ value: { color: '#00a3ff' } }}
+          />
         </Card>
 
         <Card className="stat-card">
-          <Statistic title="总订单" value={stats?.total_orders || 0} />
+          <Statistic
+            title="总订单 / Orders"
+            value={stats?.total_orders || 0}
+            styles={{ value: { color: '#94a3b8' } }}
+          />
         </Card>
 
         <Card className="stat-card">
-          <Statistic title="成交订单" value={stats?.filled_orders || 0} />
+          <Statistic
+            title="成交订单 / Filled"
+            value={stats?.filled_orders || 0}
+            styles={{ value: { color: '#94a3b8' } }}
+          />
         </Card>
       </div>
 

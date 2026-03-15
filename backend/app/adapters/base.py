@@ -47,7 +47,7 @@ class BrokerAdapter(ABC):
         pass
 
     @abstractmethod
-    async def get_order(self, order_id: str) -> OrderData:
+    async def get_order(self, order_id: str, symbol: str | None = None) -> OrderData:
         """查询订单"""
         pass
 

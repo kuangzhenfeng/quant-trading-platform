@@ -93,3 +93,7 @@ cd backend && uv sync             # 安装依赖（使用 uv）
 cd backend && uv run uvicorn app.main:app --reload  # 启动开发服务器
 cd backend && uv run pytest -v    # 运行后端测试
 ```
+
+## 注意
+
+- 当配置的API KEY是真实配置时，涉及金钱的操作严格遵循总额度必须小于10美元，避免误操作导致损失。

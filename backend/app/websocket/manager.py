@@ -17,6 +17,12 @@ class ConnectionManager:
         if client_id in self.active_connections:
             self.active_connections[client_id].discard(websocket)
 
+    async def send_personal_message(self, message: dict, client_id: str):
+        """发送个人消息"""
+        connections = self.active_connections.get(client_id, set())
+        for connection in connections:
+            await connection.send_json(message)
+
     async def broadcast(self, message: dict, client_id: str = None):
         """广播消息"""
         if client_id:

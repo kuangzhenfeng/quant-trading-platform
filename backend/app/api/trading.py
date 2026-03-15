@@ -18,12 +18,18 @@ class PlaceOrderRequest(BaseModel):
 @router.post("/order")
 async def place_order(req: PlaceOrderRequest):
     """下单"""
-    success, result = await trading_service.place_order(
-        req.broker, req.symbol, req.side, req.type, req.quantity, req.price
-    )
-    if not success:
-        raise HTTPException(status_code=400, detail=result)
-    return {"order_id": result}
+    try:
+        success, result = await trading_service.place_order(
+            req.broker, req.symbol, req.side, req.type, req.quantity, req.price
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail=result)
+        return {"order_id": result}
+    except Exception as e:
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        print(f"[ERROR] place_order failed: {error_detail}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/order/{broker}/{order_id}")
