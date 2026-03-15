@@ -7,8 +7,11 @@ import Market from './pages/Market';
 import Strategy from './pages/Strategy';
 import Monitor from './pages/Monitor';
 import Account from './pages/Account';
+import Users from './pages/Users';
 import Logs from './pages/Logs';
 import Backtest from './pages/Backtest';
+import Login from './pages/Login';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function App() {
   return (
@@ -67,12 +70,14 @@ export default function App() {
       <AntApp>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<MainLayout />}>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />
               <Route path="market" element={<Market />} />
               <Route path="trading" element={<Trading />} />
               <Route path="strategy" element={<Strategy />} />
               <Route path="monitor" element={<Monitor />} />
+              <Route path="users" element={<Users />} />
               <Route path="account" element={<Account />} />
               <Route path="logs" element={<Logs />} />
               <Route path="backtest" element={<Backtest />} />

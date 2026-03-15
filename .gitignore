@@ -6,5 +6,5 @@ __pycache__/
 .pytest_cache/
 .venv/
 .env
-*.env
-!.env.example
+backend/users.json
+backend/accounts.json

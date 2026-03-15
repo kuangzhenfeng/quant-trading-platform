@@ -1,21 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Layout, Tooltip, Select } from 'antd';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Layout, Tooltip, Select, Button } from 'antd';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   DashboardOutlined,
   LineChartOutlined,
   SwapOutlined,
   RocketOutlined,
   MonitorOutlined,
-  UserOutlined,
   FileTextOutlined,
   ExperimentOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   BankOutlined,
+  LogoutOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { useTradingModeStore } from '../../stores/tradingModeStore';
 import { useBrokerStore } from '../../stores/brokerStore';
+import { authService } from '../../services/auth';
 
 const { Content } = Layout;
 
@@ -25,7 +27,8 @@ const navItems = [
   { key: '/trading', icon: <SwapOutlined />, label: '交易' },
   { key: '/strategy', icon: <RocketOutlined />, label: '策略' },
   { key: '/monitor', icon: <MonitorOutlined />, label: '监控' },
-  { key: '/account', icon: <UserOutlined />, label: '账户' },
+  { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
+  { key: '/account', icon: <BankOutlined />, label: '券商账户' },
   { key: '/logs', icon: <FileTextOutlined />, label: '日志' },
   { key: '/backtest', icon: <ExperimentOutlined />, label: '回测' },
 ];
@@ -84,8 +87,14 @@ function ModeIndicator() {
 
 export default function MainLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const { broker, setBroker } = useBrokerStore();
+
+  const handleLogout = () => {
+    authService.logout();
+    navigate('/login');
+  };
 
   return (
     <Layout style={{ minHeight: '100vh', background: 'var(--bg-void)' }}>
@@ -186,6 +195,22 @@ export default function MainLayout() {
             }} />
             CONNECTED
           </div>
+          {import.meta.env.VITE_AUTH_ENABLED === 'true' && (
+            <Button
+              icon={<LogoutOutlined />}
+              onClick={handleLogout}
+              size="small"
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--text-secondary)',
+                borderColor: 'var(--border-default)',
+              }}
+            >
+              退出
+            </Button>
+          )}
         </div>
       </header>
 

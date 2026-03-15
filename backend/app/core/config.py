@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     guojin_live_account_id: str = ""
     guojin_live_password: str = ""
 
+    # 认证配置
+    AUTH_ENABLED: bool = False
+    AUTH_DEFAULT_USERNAME: str = "admin"
+    AUTH_DEFAULT_PASSWORD: str = "admin123"
+    AUTH_JWT_SECRET: str = "your-secret-key-change-in-production"
+    AUTH_JWT_ALGORITHM: str = "HS256"
+    AUTH_ACCESS_TOKEN_EXPIRE_DAYS: int = 7
+
     class Config:
         env_file = ".env"
         extra = "ignore"  # 忽略额外的环境变量

@@ -70,3 +70,8 @@ export interface AccountFormValues {
   name: string;
   config?: string;
 }
+
+export interface User {
+  username: string;
+  created_at: string;
+}

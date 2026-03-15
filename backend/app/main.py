@@ -3,11 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 from app.core.config import settings, TradingMode
-from app.api import websocket, market, trading, strategy, monitor, account, logs, backtest
+from app.api import websocket, market, trading, strategy, monitor, account, logs, backtest, auth, users
 from app.services.market import market_service
 from app.services.trading import trading_service
 from app.services.strategy import strategy_engine
 from app.adapters.factory import AdapterFactory
+from app.middleware.auth_middleware import AuthMiddleware
 
 
 @asynccontextmanager
@@ -80,6 +81,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(AuthMiddleware)
+
+app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(websocket.router)
 app.include_router(market.router)
 app.include_router(trading.router)

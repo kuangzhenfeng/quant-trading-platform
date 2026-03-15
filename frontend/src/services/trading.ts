@@ -1,6 +1,28 @@
 import axios from 'axios';
+import { authService } from './auth';
 
 const API_BASE = 'http://localhost:8000/api/trading';
+
+// 添加请求拦截器以附加 token
+axios.interceptors.request.use((config) => {
+  const token = authService.getToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// 添加响应拦截器处理 401
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      authService.logout();
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 export interface PlaceOrderRequest {
   broker: string;
