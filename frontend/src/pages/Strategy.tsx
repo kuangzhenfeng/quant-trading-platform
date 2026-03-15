@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import { strategyApi } from '../services/strategy';
 import type { ApiError } from '../types/api';
+import { useBrokerStore } from '../stores/brokerStore';
 
 const FIELD_LABEL_STYLE: React.CSSProperties = {
   fontSize: 11,
@@ -42,7 +43,7 @@ const CARD_STYLE: React.CSSProperties = {
 };
 
 export default function Strategy() {
-  const [broker, setBroker] = useState('okx');
+  const { broker } = useBrokerStore();
   const [strategyType, setStrategyType] = useState('ma');
   const [symbol, setSymbol] = useState('BTC-USDT');
   const [shortPeriod, setShortPeriod] = useState(5);
@@ -150,26 +151,13 @@ export default function Strategy() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-          {/* Row 1: Broker + Symbol */}
+          {/* Row 1: Strategy + Symbol */}
           <div>
             <div style={{ ...FIELD_LABEL_STYLE, marginBottom: 12 }}>
               <ApartmentOutlined style={{ marginRight: 5 }} />
               交易标的
             </div>
             <Space wrap size={16}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={FIELD_LABEL_STYLE}>券商</span>
-                <Select
-                  value={broker}
-                  onChange={setBroker}
-                  style={{ width: 140 }}
-                  options={[
-                    { label: 'OKX', value: 'okx' },
-                    { label: '国金证券', value: 'guojin' },
-                    { label: 'moomoo', value: 'moomoo' },
-                  ]}
-                />
-              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={FIELD_LABEL_STYLE}>策略</span>
                 <Select

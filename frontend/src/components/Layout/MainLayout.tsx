@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Layout, Tooltip } from 'antd';
+import { Layout, Tooltip, Select } from 'antd';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -12,8 +12,10 @@ import {
   ExperimentOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  BankOutlined,
 } from '@ant-design/icons';
 import { useTradingModeStore } from '../../stores/tradingModeStore';
+import { useBrokerStore } from '../../stores/brokerStore';
 
 const { Content } = Layout;
 
@@ -83,6 +85,7 @@ function ModeIndicator() {
 export default function MainLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { broker, setBroker } = useBrokerStore();
 
   return (
     <Layout style={{ minHeight: '100vh', background: 'var(--bg-void)' }}>
@@ -142,6 +145,26 @@ export default function MainLayout() {
           }} />
 
           <ModeIndicator />
+
+          <div style={{
+            width: 1,
+            height: 20,
+            background: 'var(--border-default)',
+            margin: '0 4px',
+          }} />
+
+          <Select
+            value={broker}
+            onChange={setBroker}
+            style={{ width: 130 }}
+            size="small"
+            suffixIcon={<BankOutlined />}
+            options={[
+              { label: 'OKX', value: 'okx' },
+              { label: '国金证券', value: 'guojin' },
+              { label: 'moomoo', value: 'moomoo' },
+            ]}
+          />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>

@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
-import { Select, Button, Table } from 'antd';
+import { Button, Table } from 'antd';
 import { ThunderboltOutlined, WifiOutlined } from '@ant-design/icons';
 import { useMarketWebSocket } from '../hooks/useMarketWebSocket';
+import { useBrokerStore } from '../stores/brokerStore';
 
 interface TickData {
   symbol: string;
@@ -12,7 +13,7 @@ interface TickData {
 
 export default function Market() {
   const [ticks, setTicks] = useState<Record<string, TickData>>({});
-  const [broker, setBroker] = useState('okx');
+  const { broker } = useBrokerStore();
   const [subscribed, setSubscribed] = useState(false);
 
   const handleTick = useCallback((tick: TickData) => {
@@ -103,28 +104,6 @@ export default function Market() {
         borderRadius: 'var(--radius-md)',
         marginBottom: 20,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: 'var(--text-tertiary)',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
-          }}>
-            平台
-          </span>
-          <Select
-            value={broker}
-            onChange={v => { setBroker(v); setSubscribed(false); }}
-            style={{ width: 150 }}
-            options={[
-              { label: 'OKX', value: 'okx' },
-              { label: '国金证券', value: 'guojin' },
-              { label: 'moomoo', value: 'moomoo' },
-            ]}
-          />
-        </div>
-
         <Button
           type="primary"
           onClick={handleSubscribe}

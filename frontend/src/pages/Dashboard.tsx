@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Select, App } from 'antd';
+import { App } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, WalletOutlined, DollarOutlined, LockOutlined } from '@ant-design/icons';
 import { tradingApi, type AccountData } from '../services/trading';
+import { useBrokerStore } from '../stores/brokerStore';
 
 export default function Dashboard() {
   const { message } = App.useApp();
-  const [broker, setBroker] = useState('okx');
+  const { broker } = useBrokerStore();
   const [account, setAccount] = useState<AccountData | null>(null);
 
   const loadAccount = useCallback(async () => {
@@ -49,39 +50,6 @@ export default function Dashboard() {
       <div className="page-header">
         <h1 className="page-title">Dashboard</h1>
         <p className="page-subtitle">账户总览与资产概况</p>
-      </div>
-
-      {/* Broker Selector */}
-      <div className="animate-in" style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '10px 16px',
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-md)',
-        marginBottom: 24,
-      }}>
-        <span style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color: 'var(--text-tertiary)',
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-          fontFamily: 'var(--font-sans)',
-        }}>
-          平台
-        </span>
-        <Select
-          value={broker}
-          onChange={setBroker}
-          style={{ width: 140 }}
-          options={[
-            { label: 'OKX', value: 'okx' },
-            { label: '国金证券', value: 'guojin' },
-            { label: 'moomoo', value: 'moomoo' },
-          ]}
-        />
       </div>
 
       {/* Stats Grid */}

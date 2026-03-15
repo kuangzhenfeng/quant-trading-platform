@@ -4,11 +4,12 @@ import { ThunderboltOutlined, WalletOutlined, DollarOutlined, LockOutlined } fro
 import { tradingApi, type PositionData, type AccountData } from '../services/trading';
 import type { ApiError } from '../types/api';
 import { useTradingModeStore } from '../stores/tradingModeStore';
+import { useBrokerStore } from '../stores/brokerStore';
 
 export default function Trading() {
   const { message } = App.useApp();
   const { mode, fetchMode } = useTradingModeStore();
-  const [broker, setBroker] = useState('okx');
+  const { broker } = useBrokerStore();
   const [symbol, setSymbol] = useState('BTC-USDT');
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
@@ -171,16 +172,8 @@ export default function Trading() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Row 1: Broker & Symbol */}
+          {/* Row 1: Symbol */}
           <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>平台</span>
-              <Select value={broker} onChange={setBroker} style={{ width: 130 }}>
-                <Select.Option value="okx">OKX</Select.Option>
-                <Select.Option value="guojin">国金证券</Select.Option>
-                <Select.Option value="moomoo">moomoo</Select.Option>
-              </Select>
-            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>标的</span>
               <Select value={symbol} onChange={setSymbol} style={{ width: 160 }}>
