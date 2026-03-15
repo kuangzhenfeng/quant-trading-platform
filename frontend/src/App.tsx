@@ -16,16 +16,51 @@ export default function App() {
       theme={{
         algorithm: theme.darkAlgorithm,
         token: {
-          colorPrimary: '#00ff88',
-          colorSuccess: '#00ff88',
-          colorWarning: '#ffaa00',
-          colorError: '#ff3366',
-          colorInfo: '#00d4ff',
-          colorBgBase: '#0a0e1a',
-          colorBgContainer: '#131824',
-          colorBorder: '#2a3142',
-          borderRadius: 2,
-          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          colorPrimary: '#22d3ee',
+          colorSuccess: '#34d399',
+          colorWarning: '#fbbf24',
+          colorError: '#f87171',
+          colorInfo: '#22d3ee',
+          colorBgBase: '#0b0c10',
+          colorBgContainer: '#16181f',
+          colorBgElevated: '#1c1e27',
+          colorBorder: 'rgba(148, 163, 184, 0.12)',
+          colorBorderSecondary: 'rgba(148, 163, 184, 0.08)',
+          borderRadius: 6,
+          fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+          fontSize: 14,
+          controlHeight: 36,
+          wireframe: false,
+        },
+        components: {
+          Table: {
+            headerBg: 'rgba(34, 211, 238, 0.04)',
+            headerColor: '#64748b',
+            rowHoverBg: 'rgba(34, 211, 238, 0.03)',
+            borderColor: 'rgba(148, 163, 184, 0.08)',
+          },
+          Card: {
+            headerBg: 'transparent',
+          },
+          Button: {
+            primaryShadow: 'none',
+          },
+          Select: {
+            optionActiveBg: 'rgba(34, 211, 238, 0.08)',
+            optionSelectedBg: 'rgba(34, 211, 238, 0.12)',
+          },
+          Input: {
+            activeBorderColor: '#22d3ee',
+            hoverBorderColor: 'rgba(34, 211, 238, 0.5)',
+          },
+          Menu: {
+            itemBg: 'transparent',
+            itemSelectedBg: 'rgba(34, 211, 238, 0.08)',
+            itemSelectedColor: '#22d3ee',
+            itemHoverBg: 'rgba(148, 163, 184, 0.06)',
+            itemColor: '#94a3b8',
+            itemHoverColor: '#f1f5f9',
+          },
         },
       }}
     >

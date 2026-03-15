@@ -38,9 +38,11 @@ export default function Monitor() {
       key: 'unrealized_pnl',
       render: (v: number) => (
         <span style={{
-          color: v >= 0 ? '#00ff9d' : '#ff4757',
+          color: v >= 0 ? 'var(--gain)' : 'var(--loss)',
           fontWeight: 600,
-          textShadow: v >= 0 ? '0 0 10px #00ff9d40' : '0 0 10px #ff475740'
+          textShadow: v >= 0
+            ? '0 0 12px rgba(52, 211, 153, 0.35)'
+            : '0 0 12px rgba(248, 113, 113, 0.35)'
         }}>
           {v >= 0 ? '+' : ''}{v.toFixed(2)}
         </span>
@@ -57,9 +59,13 @@ export default function Monitor() {
       key: 'running',
       render: (running: boolean) => (
         <Tag color={running ? 'success' : 'default'} style={{
-          background: running ? 'rgba(0, 255, 157, 0.15)' : 'rgba(148, 163, 184, 0.15)',
-          color: running ? '#00ff9d' : '#94a3b8',
-          borderColor: running ? 'rgba(0, 255, 157, 0.3)' : 'rgba(148, 163, 184, 0.3)'
+          background: running
+            ? 'rgba(52, 211, 153, 0.12)'
+            : 'rgba(148, 163, 184, 0.1)',
+          color: running ? 'var(--gain)' : 'var(--text-secondary)',
+          borderColor: running
+            ? 'rgba(52, 211, 153, 0.3)'
+            : 'rgba(148, 163, 184, 0.2)'
         }}>
           {running ? '● 运行中' : '○ 已停止'}
         </Tag>
@@ -73,48 +79,62 @@ export default function Monitor() {
 
   return (
     <div className="monitor-container">
+      {/* Page Header */}
+      <header className="page-header animate-in stagger-1">
+        <h1 className="page-title">Monitor</h1>
+        <p className="page-subtitle">实时监控与盈亏追踪</p>
+      </header>
+
+      {/* Stats Grid */}
       <div className="monitor-grid">
-        <Card className="stat-card pnl-card">
+        {/* P&L — spans 2 columns */}
+        <Card className="stat-card pnl-card animate-in stagger-2">
           <Statistic
             title="总盈亏 / Total P&L"
             value={Math.abs(pnlValue)}
             precision={2}
             styles={{
-              value: {
-                color: isPositive ? '#00ff9d' : '#ff4757',
-                textShadow: `0 0 20px ${isPositive ? '#00ff9d' : '#ff4757'}40`
+              content: {
+                color: isPositive ? 'var(--gain)' : 'var(--loss)',
+                textShadow: isPositive
+                  ? '0 0 24px rgba(52, 211, 153, 0.4)'
+                  : '0 0 24px rgba(248, 113, 113, 0.4)'
               }
             }}
             prefix={isPositive ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
           />
         </Card>
 
-        <Card className="stat-card">
+        {/* Positions */}
+        <Card className="stat-card animate-in stagger-3">
           <Statistic
             title="持仓数 / Positions"
             value={pnl?.position_count || 0}
-            styles={{ value: { color: '#00a3ff' } }}
+            styles={{ content: { color: 'var(--cyan-400)' } }}
           />
         </Card>
 
-        <Card className="stat-card">
+        {/* Total Orders */}
+        <Card className="stat-card animate-in stagger-4">
           <Statistic
             title="总订单 / Orders"
             value={stats?.total_orders || 0}
-            styles={{ value: { color: '#94a3b8' } }}
+            styles={{ content: { color: 'var(--text-secondary)' } }}
           />
         </Card>
 
-        <Card className="stat-card">
+        {/* Filled Orders */}
+        <Card className="stat-card animate-in stagger-5">
           <Statistic
             title="成交订单 / Filled"
             value={stats?.filled_orders || 0}
-            styles={{ value: { color: '#94a3b8' } }}
+            styles={{ content: { color: 'var(--text-secondary)' } }}
           />
         </Card>
       </div>
 
-      <Card title="持仓明细" className="table-card">
+      {/* Positions Table */}
+      <Card title="持仓明细" className="table-card animate-in stagger-5">
         <Table
           dataSource={pnl?.positions || []}
           columns={positionColumns}
@@ -123,7 +143,8 @@ export default function Monitor() {
         />
       </Card>
 
-      <Card title="策略状态" className="table-card">
+      {/* Strategy Status Table */}
+      <Card title="策略状态" className="table-card animate-in stagger-6">
         <Table
           dataSource={strategies}
           columns={strategyColumns}
