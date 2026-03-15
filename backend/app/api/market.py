@@ -2,16 +2,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from typing import List
 from app.websocket.manager import manager
 from app.services.market import market_service
-from app.adapters.okx import OKXAdapter
-from app.adapters.guojin import GuojinAdapter
-from app.adapters.moomoo import MoomooAdapter
 
 router = APIRouter(prefix="/api/market", tags=["market"])
-
-# 初始化 Adapters
-market_service.register_adapter("okx", OKXAdapter({}))
-market_service.register_adapter("guojin", GuojinAdapter({}))
-market_service.register_adapter("moomoo", MoomooAdapter({}))
 
 
 @router.get("/tick/{symbol}")

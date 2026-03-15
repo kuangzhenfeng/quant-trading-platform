@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Callable
-from app.models.schemas import OrderSide, OrderType, TickData, OrderData, PositionData, AccountData
+from datetime import datetime
+from app.models.schemas import OrderSide, OrderType, TickData, OrderData, PositionData, AccountData, KlineData
 
 class BrokerAdapter(ABC):
     """统一券商适配器抽象基类"""
@@ -59,4 +60,16 @@ class BrokerAdapter(ABC):
     @abstractmethod
     async def get_positions(self) -> List[PositionData]:
         """获取持仓列表"""
+        pass
+
+    @abstractmethod
+    async def get_klines(
+        self,
+        symbol: str,
+        interval: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 100
+    ) -> List[KlineData]:
+        """获取历史K线数据"""
         pass

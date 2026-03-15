@@ -2,38 +2,47 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
-from app.core.config import settings
+from app.core.config import settings, TradingMode
 from app.api import websocket, market, trading, strategy, monitor, account, logs, backtest
 from app.services.market import market_service
 from app.services.trading import trading_service
 from app.services.strategy import strategy_engine
-from app.adapters.okx import OKXAdapter
-from app.adapters.guojin import GuojinAdapter
-from app.adapters.moomoo import MoomooAdapter
+from app.adapters.factory import AdapterFactory
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    # 注册交易适配器
-    okx_config = {
-        "api_key": settings.okx_api_key,
-        "secret_key": settings.okx_secret_key,
-        "passphrase": settings.okx_passphrase,
-    }
-    guojin_config = {
-        "account_id": settings.guojin_account_id,
-        "password": settings.guojin_password,
-    }
-    moomoo_config = {}
-    if settings.moomoo_host:
-        moomoo_config["host"] = settings.moomoo_host
-    if settings.moomoo_port:
-        moomoo_config["port"] = settings.moomoo_port
+    # 使用工厂方法创建适配器，配置根据模式自动选择
+    try:
+        okx_adapter = AdapterFactory.create(
+            "okx",
+            settings.get_broker_config("okx", settings.trading_mode),
+            settings.trading_mode
+        )
+    except NotImplementedError as e:
+        print(f"[WARNING] OKX {settings.trading_mode} not supported, using Mock: {e}")
+        okx_adapter = AdapterFactory.create("okx", {}, TradingMode.MOCK)
 
-    okx_adapter = OKXAdapter(okx_config)
-    guojin_adapter = GuojinAdapter(guojin_config)
-    moomoo_adapter = MoomooAdapter(moomoo_config)
+    try:
+        guojin_adapter = AdapterFactory.create(
+            "guojin",
+            settings.get_broker_config("guojin", settings.trading_mode),
+            settings.trading_mode
+        )
+    except NotImplementedError as e:
+        print(f"[WARNING] Guojin {settings.trading_mode} not supported, using Mock: {e}")
+        guojin_adapter = AdapterFactory.create("guojin", {}, TradingMode.MOCK)
+
+    try:
+        moomoo_adapter = AdapterFactory.create(
+            "moomoo",
+            settings.get_broker_config("moomoo", settings.trading_mode),
+            settings.trading_mode
+        )
+    except NotImplementedError as e:
+        print(f"[WARNING] Moomoo {settings.trading_mode} not supported, using Mock: {e}")
+        moomoo_adapter = AdapterFactory.create("moomoo", {}, TradingMode.MOCK)
 
     await okx_adapter.connect()
     await guojin_adapter.connect()

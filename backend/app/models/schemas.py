@@ -63,12 +63,33 @@ class LogEntry(BaseModel):
     source: str
     message: str
 
+class KlineInterval(str, Enum):
+    """K线周期"""
+    MIN_1 = "1m"
+    MIN_5 = "5m"
+    MIN_15 = "15m"
+    HOUR_1 = "1H"
+    DAY_1 = "1D"
+
+class KlineData(BaseModel):
+    """K线数据（OHLCV）"""
+    broker: str
+    symbol: str
+    timestamp: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
 class BacktestConfig(BaseModel):
     strategy_id: str
     symbol: str
     start_date: str
     end_date: str
     initial_capital: float
+    data_source: str = "mock"
+    interval: str = "1H"
 
 class BacktestResult(BaseModel):
     total_return: float

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Select, InputNumber, Button, message, Space } from 'antd';
 import { strategyApi } from '../services/strategy';
 import type { ApiError } from '../types/api';
@@ -50,7 +50,7 @@ export default function Strategy() {
     }
   };
 
-  const handleRefreshLogs = async () => {
+  const handleRefreshLogs = useCallback(async () => {
     if (!strategyId) return;
     try {
       const logs = await strategyApi.getLogs(strategyId);
@@ -58,7 +58,14 @@ export default function Strategy() {
     } catch {
       message.error('获取日志失败');
     }
-  };
+  }, [strategyId]);
+
+  useEffect(() => {
+    if (!strategyId) return;
+    handleRefreshLogs();
+    const interval = setInterval(handleRefreshLogs, 5000);
+    return () => clearInterval(interval);
+  }, [strategyId, handleRefreshLogs]);
 
   return (
     <div style={{ padding: 24 }}>

@@ -6,14 +6,15 @@ from typing import List, Dict, Any, Callable
 import httpx
 from datetime import datetime
 from app.adapters.base import BrokerAdapter
+from app.adapters.exceptions import BrokerAPIError
 from app.models.schemas import (
     TickData, OrderData, PositionData, AccountData,
-    OrderSide, OrderType, OrderStatus
+    OrderSide, OrderType, OrderStatus, KlineData
 )
 
 
-class OKXAdapter(BrokerAdapter):
-    """OKX 交易所适配器"""
+class OKXLiveAdapter(BrokerAdapter):
+    """OKX 真实交易适配器"""
 
     BASE_URL = "https://www.okx.com"
 
@@ -23,13 +24,6 @@ class OKXAdapter(BrokerAdapter):
         self.secret_key = config.get("secret_key", "")
         self.passphrase = config.get("passphrase", "")
         self.client = httpx.AsyncClient(base_url=self.BASE_URL, timeout=10.0)
-
-        # 判断是否使用真实 API
-        self.use_real_api = bool(
-            self.api_key and
-            self.secret_key and
-            self.passphrase
-        )
 
     def _sign(self, timestamp: str, method: str, path: str, body: str = "") -> str:
         """生成 OKX API 签名"""
@@ -87,20 +81,15 @@ class OKXAdapter(BrokerAdapter):
 
     async def subscribe_market_data(self, symbols: List[str], callback: Callable):
         """订阅实时行情推送（WebSocket）"""
-        if not self.use_real_api:
-            return
-
         try:
             import websockets
             async with websockets.connect("wss://ws.okx.com:8443/ws/v5/public") as ws:
-                # 订阅行情
                 subscribe_msg = {
                     "op": "subscribe",
                     "args": [{"channel": "tickers", "instId": symbol} for symbol in symbols]
                 }
                 await ws.send(json.dumps(subscribe_msg))
 
-                # 持续接收数据
                 while True:
                     msg = await ws.recv()
                     data = json.loads(msg)
@@ -127,28 +116,30 @@ class OKXAdapter(BrokerAdapter):
         quantity: float,
         price: float | None = None
     ) -> str:
-        """下单"""
-        if self.use_real_api:
-            return await self._place_order_real(symbol, side, order_type, quantity, price)
-        return self._place_order_mock(symbol, side, order_type, quantity, price)
+        """下单
 
-    async def _place_order_real(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: float,
-        price: float | None = None
-    ) -> str:
-        """真实下单"""
+        注意：OKX市价单买入时，sz参数表示花费的金额（USDT）
+              市价单卖出时，sz参数表示卖出的数量（BTC）
+        """
         path = "/api/v5/trade/order"
+        side_str = "buy" if side == OrderSide.BUY else "sell"
+        order_type_str = "limit" if order_type == OrderType.LIMIT else "market"
+
         body_data = {
             "instId": symbol,
             "tdMode": "cash",
-            "side": "buy" if side == OrderSide.BUY else "sell",
-            "ordType": "limit" if order_type == OrderType.LIMIT else "market",
+            "side": side_str,
+            "ordType": order_type_str,
             "sz": str(quantity),
         }
+
+        # 市价买入：sz表示花费金额，需要转换
+        if order_type == OrderType.MARKET and side == OrderSide.BUY:
+            # 获取当前价格估算金额
+            tick = await self.get_tick(symbol)
+            amount = quantity * tick.last_price
+            body_data["sz"] = str(amount)
+
         if price and order_type == OrderType.LIMIT:
             body_data["px"] = str(price)
 
@@ -160,30 +151,12 @@ class OKXAdapter(BrokerAdapter):
         if data["code"] != "0":
             error_msg = f"OKX API Error - Code: {data.get('code')}, Msg: {data.get('msg')}, Data: {data.get('data')}"
             print(f"[OKX] {error_msg}")
-            raise ValueError(error_msg)
+            raise BrokerAPIError(error_msg)
 
         return data["data"][0]["ordId"]
 
-    def _place_order_mock(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: float,
-        price: float | None = None
-    ) -> str:
-        """Mock 下单"""
-        import uuid
-        return f"okx_{uuid.uuid4().hex[:16]}"
-
     async def cancel_order(self, order_id: str) -> bool:
         """撤单"""
-        if self.use_real_api:
-            return await self._cancel_order_real(order_id)
-        return self._cancel_order_mock(order_id)
-
-    async def _cancel_order_real(self, order_id: str) -> bool:
-        """真实撤单"""
         path = "/api/v5/trade/cancel-order"
         body_data = {"ordId": order_id}
         body = json.dumps(body_data)
@@ -192,18 +165,8 @@ class OKXAdapter(BrokerAdapter):
         data = response.json()
         return data["code"] == "0"
 
-    def _cancel_order_mock(self, order_id: str) -> bool:
-        """Mock 撤单"""
-        return True
-
     async def get_order(self, order_id: str, symbol: str | None = None) -> OrderData:
         """查询订单"""
-        if self.use_real_api:
-            return await self._get_order_real(order_id, symbol)
-        return self._get_order_mock(order_id)
-
-    async def _get_order_real(self, order_id: str, symbol: str | None = None) -> OrderData:
-        """真实查询订单"""
         path = f"/api/v5/trade/order?ordId={order_id}"
         if symbol:
             path += f"&instId={symbol}"
@@ -221,36 +184,23 @@ class OKXAdapter(BrokerAdapter):
             "filled": OrderStatus.FILLED,
             "canceled": OrderStatus.CANCELLED,
         }
+
+        # 处理价格字段：市价单px为空，使用avgPx（成交均价）
+        px = order.get("px") or order.get("avgPx") or "0"
+        price = float(px) if px else 0.0
+
         return OrderData(
             order_id=order["ordId"],
             symbol=order["instId"],
             side=OrderSide.BUY if order["side"] == "buy" else OrderSide.SELL,
             type=OrderType.LIMIT if order["ordType"] == "limit" else OrderType.MARKET,
             quantity=float(order["sz"]),
-            price=float(order.get("px", 0)),
+            price=price,
             status=status_map.get(order["state"], OrderStatus.PENDING)
-        )
-
-    def _get_order_mock(self, order_id: str) -> OrderData:
-        """Mock 查询订单"""
-        return OrderData(
-            order_id=order_id,
-            symbol="BTC-USDT",
-            side=OrderSide.BUY,
-            type=OrderType.LIMIT,
-            quantity=0.01,
-            price=70000.0,
-            status=OrderStatus.FILLED
         )
 
     async def get_account(self) -> AccountData:
         """获取账户信息"""
-        if self.use_real_api:
-            return await self._get_account_real()
-        return self._get_account_mock()
-
-    async def _get_account_real(self) -> AccountData:
-        """真实获取账户信息"""
         path = "/api/v5/account/balance"
         headers = self._get_headers("GET", path)
         response = await self.client.get(path, headers=headers)
@@ -268,24 +218,9 @@ class OKXAdapter(BrokerAdapter):
             frozen=0.0
         )
 
-    def _get_account_mock(self) -> AccountData:
-        """Mock 获取账户信息"""
-        return AccountData(
-            broker="okx",
-            balance=100000.0,
-            available=95000.0,
-            frozen=5000.0
-        )
-
     async def get_positions(self) -> List[PositionData]:
-        """获取持仓列表"""
-        if self.use_real_api:
-            return await self._get_positions_real()
-        return self._get_positions_mock()
-
-    async def _get_positions_real(self) -> List[PositionData]:
-        """真实获取持仓列表"""
-        path = "/api/v5/account/positions"
+        """获取持仓列表（现货交易返回各币种余额）"""
+        path = "/api/v5/account/balance"
         headers = self._get_headers("GET", path)
         response = await self.client.get(path, headers=headers)
         data = response.json()
@@ -294,23 +229,54 @@ class OKXAdapter(BrokerAdapter):
             raise ValueError(f"Failed to get positions: {data.get('msg')}")
 
         positions = []
-        for pos in data.get("data", []):
-            if float(pos.get("pos", 0)) != 0:
-                positions.append(PositionData(
-                    symbol=pos["instId"],
-                    quantity=float(pos["pos"]),
-                    avg_price=float(pos.get("avgPx", 0)),
-                    unrealized_pnl=float(pos.get("upl", 0))
-                ))
+        for account in data.get("data", []):
+            for detail in account.get("details", []):
+                balance = float(detail.get("cashBal", 0))
+                if balance > 0 and detail["ccy"] != "USDT":  # 排除USDT，只显示持仓币种
+                    # 获取当前价格用于计算盈亏
+                    try:
+                        symbol = f"{detail['ccy']}-USDT"
+                        tick = await self.get_tick(symbol)
+                        positions.append(PositionData(
+                            symbol=symbol,
+                            quantity=balance,
+                            avg_price=tick.last_price,
+                            unrealized_pnl=0.0  # 现货无法计算盈亏，需要历史成本
+                        ))
+                    except:
+                        pass  # 忽略无法获取价格的币种
         return positions
 
-    def _get_positions_mock(self) -> List[PositionData]:
-        """Mock 获取持仓列表"""
-        return [
-            PositionData(
-                symbol="BTC-USDT",
-                quantity=0.5,
-                avg_price=68000.0,
-                unrealized_pnl=1500.0
-            )
-        ]
+    async def get_klines(
+        self,
+        symbol: str,
+        interval: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 100
+    ) -> List[KlineData]:
+        """获取历史K线数据
+
+        注意：OKX API返回最新的数据，暂不支持精确的时间范围查询
+        """
+        path = f"/api/v5/market/candles?instId={symbol}&bar={interval}&limit={min(limit, 100)}"
+        response = await self.client.get(path)
+        data = response.json()
+
+        if data["code"] != "0":
+            raise BrokerAPIError(f"获取K线失败: {data.get('msg')}")
+
+        klines = []
+        for candle in data["data"]:
+            klines.append(KlineData(
+                broker="okx",
+                symbol=symbol,
+                timestamp=datetime.fromtimestamp(int(candle[0]) / 1000),
+                open=float(candle[1]),
+                high=float(candle[2]),
+                low=float(candle[3]),
+                close=float(candle[4]),
+                volume=float(candle[5])
+            ))
+
+        return sorted(klines, key=lambda x: x.timestamp)

@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, Select, Button, InputNumber, Radio, Table, message, Space, Statistic, Row, Col } from 'antd';
+import { Card, Select, Button, InputNumber, Radio, Table, App, Space, Statistic, Row, Col, Alert } from 'antd';
 import { tradingApi, type PositionData, type AccountData } from '../services/trading';
 import type { ApiError } from '../types/api';
+import { useTradingModeStore } from '../stores/tradingModeStore';
 
 export default function Trading() {
+  const { message } = App.useApp();
+  const { mode, description, fetchMode } = useTradingModeStore();
   const [broker, setBroker] = useState('okx');
   const [symbol, setSymbol] = useState('BTC-USDT');
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
-  const [orderType, setOrderType] = useState<'market' | 'limit'>('limit');
+  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
   const [quantity, setQuantity] = useState<number>(0.01);
   const [price, setPrice] = useState<number>(70000);
   const [loading, setLoading] = useState(false);
@@ -28,8 +31,14 @@ export default function Trading() {
   }, [broker]);
 
   useEffect(() => {
+    fetchMode();
     loadData();
-  }, [broker, loadData]);
+  }, [broker, loadData, fetchMode]);
+
+  useEffect(() => {
+    const interval = setInterval(loadData, 5000);
+    return () => clearInterval(interval);
+  }, [loadData]);
 
   const handlePlaceOrder = async () => {
     setLoading(true);
@@ -67,8 +76,20 @@ export default function Trading() {
     }
   ];
 
+  const modeConfig = {
+    live: { type: 'error' as const, message: '⚠️ 真实盘模式 - 真实资金交易' },
+    paper: { type: 'warning' as const, message: '📊 模拟盘模式 - 真实行情，模拟订单' },
+    mock: { type: 'info' as const, message: '🧪 Mock 模式 - 完全模拟' },
+  };
+
   return (
     <div style={{ padding: 24 }}>
+      <Alert
+        type={modeConfig[mode].type}
+        description={modeConfig[mode].message}
+        showIcon
+        style={{ marginBottom: 16 }}
+      />
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={6}>
           <Card>

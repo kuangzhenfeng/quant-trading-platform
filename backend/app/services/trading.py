@@ -1,6 +1,7 @@
 from typing import Dict, List
 from app.adapters.base import BrokerAdapter
 from app.models.schemas import OrderSide, OrderType, OrderData, PositionData, AccountData
+from app.core.config import settings, TradingMode
 
 
 def get_monitor_service():
@@ -24,6 +25,10 @@ class RiskControl:
                          quantity: float, price: float, account: AccountData) -> tuple[bool, str]:
         """检查订单是否符合风控规则"""
         order_amount = quantity * price
+
+        # Live 模式强制限制
+        if settings.trading_mode == TradingMode.LIVE and order_amount > 10:
+            return False, f"Live 模式: 订单金额 ${order_amount:.2f} 超过 $10 限制"
 
         # 检查单笔金额
         if order_amount > self.max_order_amount:
@@ -89,12 +94,12 @@ class TradingService:
             return False
         return await adapter.cancel_order(order_id)
 
-    async def get_order(self, broker: str, order_id: str) -> OrderData | None:
+    async def get_order(self, broker: str, order_id: str, symbol: str | None = None) -> OrderData | None:
         """查询订单"""
         adapter = self.adapters.get(broker)
         if not adapter:
             return None
-        return await adapter.get_order(order_id)
+        return await adapter.get_order(order_id, symbol)
 
     async def get_positions(self, broker: str) -> List[PositionData]:
         """获取持仓"""

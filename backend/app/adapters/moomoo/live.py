@@ -4,64 +4,48 @@ from datetime import datetime
 from app.adapters.base import BrokerAdapter
 from app.models.schemas import (
     TickData, OrderData, PositionData, AccountData,
-    OrderSide, OrderType, OrderStatus
+    OrderSide, OrderType, OrderStatus, KlineData
 )
 
 
-class MoomooAdapter(BrokerAdapter):
-    """moomoo（富途）适配器"""
+class MoomooLiveAdapter(BrokerAdapter):
+    """Moomoo（富途）真实交易适配器"""
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self.host = config.get("host", "127.0.0.1")
         self.port = config.get("port", 11111)
 
-        # 判断是否使用真实 API（需要本地运行 FutuOpenD）
-        # 只有在配置中明确提供了 host 或 port 时才认为要使用真实 API
-        self.use_real_api = bool("host" in config or "port" in config)
-
-        if self.use_real_api:
-            try:
-                from futu import OpenQuoteContext, OpenSecTradeContext
-                self.quote_ctx = None
-                self.trade_ctx = None
-            except ImportError:
-                self.use_real_api = False
+        try:
+            from futu import OpenQuoteContext, OpenSecTradeContext
+            self.quote_ctx = None
+            self.trade_ctx = None
+        except ImportError:
+            raise ImportError("futu-api package is required for Moomoo adapter")
 
     async def connect(self) -> bool:
         """建立连接"""
-        if self.use_real_api:
-            try:
-                from futu import OpenQuoteContext, OpenSecTradeContext
-                self.quote_ctx = OpenQuoteContext(host=self.host, port=self.port)
-                self.trade_ctx = OpenSecTradeContext(host=self.host, port=self.port)
-                self.connected = True
-                return True
-            except Exception:
-                self.connected = False
-                return False
-        else:
-            await asyncio.sleep(0.1)
+        try:
+            from futu import OpenQuoteContext, OpenSecTradeContext
+            self.quote_ctx = OpenQuoteContext(host=self.host, port=self.port)
+            self.trade_ctx = OpenSecTradeContext(host=self.host, port=self.port)
             self.connected = True
             return True
+        except Exception:
+            self.connected = False
+            return False
 
     async def disconnect(self) -> bool:
         """断开连接"""
-        if self.use_real_api and self.quote_ctx:
+        if self.quote_ctx:
             self.quote_ctx.close()
-            if self.trade_ctx:
-                self.trade_ctx.close()
+        if self.trade_ctx:
+            self.trade_ctx.close()
         self.connected = False
         return True
 
     async def get_tick(self, symbol: str) -> TickData:
         """获取实时行情"""
-        if self.use_real_api:
-            return await self._get_tick_real(symbol)
-        return self._get_tick_mock(symbol)
-
-    async def _get_tick_real(self, symbol: str) -> TickData:
-        """真实获取行情"""
         from futu import RET_OK
         ret, data = self.quote_ctx.get_market_snapshot([symbol])
         if ret != RET_OK or data.empty:
@@ -73,16 +57,6 @@ class MoomooAdapter(BrokerAdapter):
             symbol=symbol,
             last_price=float(row['last_price']),
             volume=int(row['volume']),
-            timestamp=datetime.now()
-        )
-
-    def _get_tick_mock(self, symbol: str) -> TickData:
-        """Mock 获取行情"""
-        return TickData(
-            broker="moomoo",
-            symbol=symbol,
-            last_price=150.25,
-            volume=500000,
             timestamp=datetime.now()
         )
 
@@ -99,19 +73,6 @@ class MoomooAdapter(BrokerAdapter):
         price: float | None = None
     ) -> str:
         """下单"""
-        if self.use_real_api:
-            return await self._place_order_real(symbol, side, order_type, quantity, price)
-        return self._place_order_mock(symbol, side, order_type, quantity, price)
-
-    async def _place_order_real(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: float,
-        price: float | None = None
-    ) -> str:
-        """真实下单"""
         from futu import RET_OK, TrdSide, OrderType as FutuOrderType
 
         futu_side = TrdSide.BUY if side == OrderSide.BUY else TrdSide.SELL
@@ -130,38 +91,14 @@ class MoomooAdapter(BrokerAdapter):
 
         return str(data['order_id'][0])
 
-    def _place_order_mock(
-        self,
-        symbol: str,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: float,
-        price: float | None = None
-    ) -> str:
-        """Mock 下单"""
-        import uuid
-        return f"mm_{uuid.uuid4().hex[:16]}"
-
     async def cancel_order(self, order_id: str) -> bool:
         """撤单"""
-        if self.use_real_api:
-            return await self._cancel_order_real(order_id)
-        return True
-
-    async def _cancel_order_real(self, order_id: str) -> bool:
-        """真实撤单"""
         from futu import RET_OK
         ret, data = self.trade_ctx.modify_order(modify_order_op=2, order_id=int(order_id))
         return ret == RET_OK
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> OrderData:
         """查询订单"""
-        if self.use_real_api:
-            return await self._get_order_real(order_id)
-        return self._get_order_mock(order_id)
-
-    async def _get_order_real(self, order_id: str) -> OrderData:
-        """真实查询订单"""
         from futu import RET_OK, TrdSide, OrderStatus as FutuOrderStatus
         ret, data = self.trade_ctx.order_list_query(order_id=int(order_id))
         if ret != RET_OK or data.empty:
@@ -187,26 +124,8 @@ class MoomooAdapter(BrokerAdapter):
             status=status_map.get(row['order_status'], OrderStatus.PENDING)
         )
 
-    def _get_order_mock(self, order_id: str) -> OrderData:
-        """Mock 查询订单"""
-        return OrderData(
-            order_id=order_id,
-            symbol="AAPL",
-            side=OrderSide.BUY,
-            type=OrderType.LIMIT,
-            quantity=10.0,
-            price=150.00,
-            status=OrderStatus.FILLED
-        )
-
     async def get_account(self) -> AccountData:
         """获取账户信息"""
-        if self.use_real_api:
-            return await self._get_account_real()
-        return self._get_account_mock()
-
-    async def _get_account_real(self) -> AccountData:
-        """真实获取账户信息"""
         from futu import RET_OK
         ret, data = self.trade_ctx.accinfo_query()
         if ret != RET_OK or data.empty:
@@ -220,23 +139,8 @@ class MoomooAdapter(BrokerAdapter):
             frozen=float(row['frozen_cash'])
         )
 
-    def _get_account_mock(self) -> AccountData:
-        """Mock 获取账户信息"""
-        return AccountData(
-            broker="moomoo",
-            balance=200000.0,
-            available=180000.0,
-            frozen=20000.0
-        )
-
     async def get_positions(self) -> List[PositionData]:
         """获取持仓列表"""
-        if self.use_real_api:
-            return await self._get_positions_real()
-        return self._get_positions_mock()
-
-    async def _get_positions_real(self) -> List[PositionData]:
-        """真实获取持仓列表"""
         from futu import RET_OK
         ret, data = self.trade_ctx.position_list_query()
         if ret != RET_OK:
@@ -253,13 +157,13 @@ class MoomooAdapter(BrokerAdapter):
                 ))
         return positions
 
-    def _get_positions_mock(self) -> List[PositionData]:
-        """Mock 获取持仓列表"""
-        return [
-            PositionData(
-                symbol="AAPL",
-                quantity=50.0,
-                avg_price=148.50,
-                unrealized_pnl=87.5
-            )
-        ]
+    async def get_klines(
+        self,
+        symbol: str,
+        interval: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 100
+    ) -> List[KlineData]:
+        """获取历史K线数据（待实现）"""
+        raise NotImplementedError("Moomoo历史K线功能待实现")

@@ -1,7 +1,7 @@
 from typing import List
 from datetime import datetime, timedelta
 import random
-from app.models.schemas import TickData, BacktestConfig, BacktestResult
+from app.models.schemas import TickData, BacktestConfig, BacktestResult, KlineData
 from app.strategies.base import Strategy, StrategyContext
 
 
@@ -11,11 +11,55 @@ class BacktestEngine:
     def __init__(self):
         self.results = {}
 
+    async def get_historical_data(self, config: BacktestConfig) -> List[TickData]:
+        """获取历史数据（支持多数据源）"""
+        if config.data_source == "mock":
+            return self.generate_historical_data(
+                config.symbol, config.start_date, config.end_date
+            )
+
+        # 从真实平台获取K线
+        from app.adapters.factory import AdapterFactory
+        from app.core.config import TradingMode
+
+        adapter = AdapterFactory.create(config.data_source, {}, TradingMode.MOCK)
+        await adapter.connect()
+
+        start = datetime.fromisoformat(config.start_date)
+        end = datetime.fromisoformat(config.end_date)
+
+        klines = await adapter.get_klines(
+            config.symbol,
+            config.interval,
+            start,
+            end,
+            limit=1000
+        )
+
+        await adapter.disconnect()
+
+        # 转换KlineData为TickData（使用收盘价）
+        return [
+            TickData(
+                broker=k.broker,
+                symbol=k.symbol,
+                last_price=k.close,
+                volume=int(k.volume),
+                timestamp=k.timestamp
+            )
+            for k in klines
+        ]
+
     def generate_historical_data(self, symbol: str, start_date: str, end_date: str) -> List[TickData]:
-        """生成模拟历史数据"""
-        data = []
+        """生成模拟历史数据（使用固定种子保证可重复性）"""
         start = datetime.fromisoformat(start_date)
         end = datetime.fromisoformat(end_date)
+
+        # 使用时间戳作为随机种子，保证相同参数生成相同数据
+        seed = int(start.timestamp()) + hash(symbol)
+        random.seed(seed)
+
+        data = []
         current = start
         price = 50000.0
 
@@ -36,10 +80,8 @@ class BacktestEngine:
         """运行回测"""
         backtest_id = f"bt_{int(datetime.now().timestamp())}"
 
-        # 生成历史数据
-        historical_data = self.generate_historical_data(
-            config.symbol, config.start_date, config.end_date
-        )
+        # 使用新方法获取历史数据
+        historical_data = await self.get_historical_data(config)
 
         # 创建回测上下文
         ctx = BacktestContext(config.initial_capital)

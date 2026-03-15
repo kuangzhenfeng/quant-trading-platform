@@ -1,8 +1,8 @@
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Callable
 from app.adapters.base import BrokerAdapter
-from app.models.schemas import OrderSide, OrderType, OrderStatus, TickData, OrderData, PositionData, AccountData
+from app.models.schemas import OrderSide, OrderType, OrderStatus, TickData, OrderData, PositionData, AccountData, KlineData
 
 class MockAdapter(BrokerAdapter):
     """模拟适配器，用于开发测试"""
@@ -61,7 +61,7 @@ class MockAdapter(BrokerAdapter):
             return True
         return False
 
-    async def get_order(self, order_id: str) -> OrderData:
+    async def get_order(self, order_id: str, symbol: str | None = None) -> OrderData:
         return self.orders.get(order_id)
 
     async def get_account(self) -> AccountData:
@@ -74,3 +74,51 @@ class MockAdapter(BrokerAdapter):
 
     async def get_positions(self) -> List[PositionData]:
         return list(self.positions.values())
+
+    async def get_klines(
+        self,
+        symbol: str,
+        interval: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int = 100
+    ) -> List[KlineData]:
+        """生成模拟K线数据（使用固定种子保证可重复性）"""
+        # 使用时间戳作为随机种子，保证相同参数生成相同数据
+        seed = int(start_time.timestamp()) + hash(symbol)
+        random.seed(seed)
+
+        klines = []
+        current = start_time
+        price = 50000.0
+
+        delta_map = {
+            "1m": timedelta(minutes=1),
+            "5m": timedelta(minutes=5),
+            "15m": timedelta(minutes=15),
+            "1H": timedelta(hours=1),
+            "1D": timedelta(days=1),
+        }
+        delta = delta_map.get(interval, timedelta(hours=1))
+
+        while current <= end_time and len(klines) < limit:
+            open_price = price
+            high_price = price * (1 + random.uniform(0, 0.02))
+            low_price = price * (1 - random.uniform(0, 0.02))
+            close_price = price * (1 + random.uniform(-0.02, 0.02))
+
+            klines.append(KlineData(
+                broker="mock",
+                symbol=symbol,
+                timestamp=current,
+                open=open_price,
+                high=high_price,
+                low=low_price,
+                close=close_price,
+                volume=random.uniform(1000, 10000)
+            ))
+
+            price = close_price
+            current += delta
+
+        return klines
