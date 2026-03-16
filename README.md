@@ -55,7 +55,7 @@ npm run dev
 ### Docker 部署
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 访问：http://localhost
