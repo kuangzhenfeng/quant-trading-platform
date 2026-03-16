@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 interface TickData {
   symbol: string;
-  price: number;
+  last_price: number;
   volume: number;
   timestamp: string;
 }

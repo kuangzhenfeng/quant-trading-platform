@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Button, Table, Segmented } from 'antd';
 import { ThunderboltOutlined, WifiOutlined, DisconnectOutlined, ClockCircleOutlined } from '@ant-design/icons';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ComposedChart, Bar, CartesianGrid } from 'recharts';
+import { Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ComposedChart, Bar, CartesianGrid } from 'recharts';
 import { useMarketWebSocket } from '../hooks/useMarketWebSocket';
 import { useBrokerStore } from '../stores/brokerStore';
 
@@ -46,7 +46,7 @@ export default function Market() {
     });
   }, []);
 
-  const { subscribe, unsubscribe, disconnect } = useMarketWebSocket('client-1', handleTick);
+  const { subscribe, unsubscribe } = useMarketWebSocket('client-1', handleTick);
 
   // 自动订阅逻辑
   useEffect(() => {
