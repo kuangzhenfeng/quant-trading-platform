@@ -23,8 +23,8 @@ docker-compose logs -f
 ## 访问地址
 
 - 前端：http://localhost
-- 后端 API：http://localhost:8000
-- API 文档：http://localhost:8000/docs
+- 后端 API：http://localhost:9000
+- API 文档：http://localhost:9000/docs
 
 ## CI/CD
 

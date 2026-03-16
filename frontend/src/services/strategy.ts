@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:8000/api/strategy';
+const API_BASE = 'http://localhost:9000/api/strategy';
 
 export interface CreateStrategyRequest {
   strategy_type: string;

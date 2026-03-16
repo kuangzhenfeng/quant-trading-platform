@@ -11,7 +11,7 @@ export const useTradingModeStore = create<TradingModeState>((set) => ({
   description: 'Mock 模式 - 完全模拟',
   fetchMode: async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/trading/mode');
+      const response = await fetch('http://localhost:9000/api/trading/mode');
       const data = await response.json();
       set({ mode: data.mode, description: data.description });
     } catch (error) {

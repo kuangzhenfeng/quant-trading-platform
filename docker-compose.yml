@@ -4,10 +4,10 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "9000:9000"
     environment:
       - API_HOST=0.0.0.0
-      - API_PORT=8000
+      - API_PORT=9000
 
   frontend:
     build: ./frontend

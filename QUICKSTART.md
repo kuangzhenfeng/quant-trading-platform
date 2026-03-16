@@ -58,8 +58,8 @@ docker-compose up --build
 
 ## 验证
 
-1. 后端健康检查：http://localhost:8000/health
-2. WebSocket 连接：ws://localhost:8000/ws/test
+1. 后端健康检查：http://localhost:9000/health
+2. WebSocket 连接：ws://localhost:9000/ws/test
 3. 前端页面：仪表盘和交易页面
 
 ## 下一步

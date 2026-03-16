@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { authService } from './auth';
 
-const API_BASE = 'http://localhost:8000/api/trading';
+const API_BASE = 'http://localhost:9000/api/trading';
 
 // 添加请求拦截器以附加 token
 axios.interceptors.request.use((config) => {

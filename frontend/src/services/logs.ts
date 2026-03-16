@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:8000/api/logs';
+const API_BASE = 'http://localhost:9000/api/logs';
 
 export const logsApi = {
   getLogs: async (level?: string, limit: number = 100) => {

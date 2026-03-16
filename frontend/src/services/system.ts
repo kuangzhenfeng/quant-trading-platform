@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { authService } from './auth';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = 'http://localhost:9000';
 
 const getAuthHeader = () => {
   const token = authService.getToken();

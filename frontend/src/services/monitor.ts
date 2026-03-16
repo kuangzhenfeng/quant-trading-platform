@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:8000/api/monitor';
+const API_BASE = 'http://localhost:9000/api/monitor';
 
 export const monitorApi = {
   getPnL: async () => {
