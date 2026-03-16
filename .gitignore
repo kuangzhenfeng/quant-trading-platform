@@ -9,3 +9,5 @@ __pycache__/
 backend/users.json
 backend/accounts.json
 backend/quant_trading.db
+backend/data.db
+backend/accounts_import.json

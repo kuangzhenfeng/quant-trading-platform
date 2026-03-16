@@ -1,10 +1,29 @@
-import { useState } from 'react';
-import { Form, Input, Button, message } from 'antd';
+import { useState, useEffect } from 'react';
+import { Form, Input, Button, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { message } = App.useApp();
+
+  useEffect(() => {
+    checkInitStatus();
+  }, []);
+
+  const checkInitStatus = async () => {
+    try {
+      const res = await fetch('/api/system/init-status');
+      const data = await res.json();
+      if (!data.has_admin) {
+        navigate('/setup');
+      }
+    } catch (error) {
+      console.error('检查初始化状态失败:', error);
+    }
+  };
 
   const handleLogin = async (values: { username: string; password: string }) => {
     setLoading(true);

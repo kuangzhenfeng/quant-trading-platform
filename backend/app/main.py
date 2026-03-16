@@ -18,57 +18,52 @@ from app.middleware.auth_middleware import AuthMiddleware
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
+    from app.services.log import log_service
+    from app.models.schemas import LogLevel
+
     # 初始化数据库
     await init_database()
     await migrate_from_json()
 
+    # 从数据库加载配置
+    await settings.load_from_db()
+    log_service.log(LogLevel.INFO, "system", f"系统启动 - 交易模式: {settings.trading_mode.value}")
+
     # 从环境变量初始化数据
     await init_data_from_env()
-    # 使用工厂方法创建适配器，配置根据模式自动选择
-    try:
-        okx_adapter = AdapterFactory.create(
-            "okx",
-            settings.get_broker_config("okx", settings.trading_mode),
-            settings.trading_mode
-        )
-    except NotImplementedError as e:
-        print(f"[WARNING] OKX {settings.trading_mode} not supported, using Mock: {e}")
-        okx_adapter = AdapterFactory.create("okx", {}, TradingMode.MOCK)
 
-    try:
-        guojin_adapter = AdapterFactory.create(
-            "guojin",
-            settings.get_broker_config("guojin", settings.trading_mode),
-            settings.trading_mode
-        )
-    except NotImplementedError as e:
-        print(f"[WARNING] Guojin {settings.trading_mode} not supported, using Mock: {e}")
-        guojin_adapter = AdapterFactory.create("guojin", {}, TradingMode.MOCK)
+    # 从数据库加载活跃账户并创建 adapter
+    from app.services.account import account_service
+    accounts = await account_service.list_accounts()
 
-    try:
-        moomoo_adapter = AdapterFactory.create(
-            "moomoo",
-            settings.get_broker_config("moomoo", settings.trading_mode),
-            settings.trading_mode
-        )
-    except NotImplementedError as e:
-        print(f"[WARNING] Moomoo {settings.trading_mode} not supported, using Mock: {e}")
-        moomoo_adapter = AdapterFactory.create("moomoo", {}, TradingMode.MOCK)
+    for account in accounts:
+        if account.active:
+            try:
+                # 根据账户配置的 is_paper 字段决定使用实盘还是模拟盘适配器
+                is_paper_value = account.config.get('is_paper')
+                is_paper = is_paper_value == 'true' or is_paper_value is True
+                mode = TradingMode.PAPER if is_paper else TradingMode.LIVE
 
-    await okx_adapter.connect()
-    await guojin_adapter.connect()
-    try:
-        await asyncio.wait_for(moomoo_adapter.connect(), timeout=5.0)
-    except (asyncio.TimeoutError, Exception) as e:
-        print(f"[WARNING] moomoo adapter connection failed: {e}")
+                # 只加载与当前交易模式匹配的账户
+                if settings.trading_mode == TradingMode.MOCK:
+                    continue  # MOCK 模式不加载真实账户
+                if settings.trading_mode == TradingMode.PAPER and not is_paper:
+                    continue  # PAPER 模式只加载模拟盘账户
+                if settings.trading_mode == TradingMode.LIVE and is_paper:
+                    continue  # LIVE 模式只加载实盘账户
 
-    trading_service.register_adapter("okx", okx_adapter)
-    trading_service.register_adapter("guojin", guojin_adapter)
-    trading_service.register_adapter("moomoo", moomoo_adapter)
-
-    market_service.register_adapter("okx", okx_adapter)
-    market_service.register_adapter("guojin", guojin_adapter)
-    market_service.register_adapter("moomoo", moomoo_adapter)
+                adapter = AdapterFactory.create(
+                    account.broker,
+                    account.config,
+                    mode
+                )
+                await adapter.connect()
+                trading_service.register_adapter(account.broker, adapter)
+                market_service.register_adapter(account.broker, adapter)
+                mode_name = "模拟盘" if is_paper else "实盘"
+                print(f"[INIT] 已加载账户: {account.name} ({account.broker}) - {mode_name}")
+            except Exception as e:
+                print(f"[WARNING] 加载账户失败 {account.name}: {e}")
 
     # 初始化策略引擎
     strategy_engine.trading_service = trading_service
@@ -100,8 +95,13 @@ app.add_middleware(AuthMiddleware)
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """全局异常处理器，确保 500 错误也带正确的 CORS 头"""
+    from app.services.log import log_service
+    from app.models.schemas import LogLevel
+
     print(f"[ERROR] 未捕获异常: {request.url.path} - {exc}")
     traceback.print_exc()
+    log_service.log(LogLevel.ERROR, "system", f"{request.url.path}: {str(exc)}")
+
     return JSONResponse(
         status_code=500,
         content={"detail": "内部服务器错误"},

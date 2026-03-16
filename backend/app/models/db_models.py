@@ -88,3 +88,11 @@ class DBSystemLog(Base):
     level: Mapped[str] = mapped_column(SQLEnum(LogLevelEnum))
     source: Mapped[str] = mapped_column(String(100))
     message: Mapped[str] = mapped_column(Text)
+
+class DBSystemConfig(Base):
+    __tablename__ = "system_config"
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str] = mapped_column(String(50))
+    is_sensitive: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

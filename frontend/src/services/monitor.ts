@@ -1,20 +1,18 @@
-import axios from 'axios';
-
-const API_BASE = 'http://localhost:9000/api/monitor';
+import request from './request';
 
 export const monitorApi = {
   getPnL: async () => {
-    const { data } = await axios.get(`${API_BASE}/pnl`);
+    const { data } = await request.get('/monitor/pnl');
     return data;
   },
 
   getStats: async () => {
-    const { data } = await axios.get(`${API_BASE}/stats`);
+    const { data } = await request.get('/monitor/stats');
     return data;
   },
 
   getStrategies: async () => {
-    const { data } = await axios.get(`${API_BASE}/strategies`);
+    const { data } = await request.get('/monitor/strategies');
     return data;
   }
 };

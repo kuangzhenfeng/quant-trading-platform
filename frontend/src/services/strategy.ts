@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = 'http://localhost:9000/api/strategy';
+import request from './request';
 
 export interface CreateStrategyRequest {
   strategy_type: string;
@@ -10,27 +8,37 @@ export interface CreateStrategyRequest {
 
 export const strategyApi = {
   getTypes: async () => {
-    const { data } = await axios.get(`${API_BASE}/types`);
+    const { data } = await request.get('/strategy/types');
     return data.types;
   },
 
   create: async (req: CreateStrategyRequest) => {
-    const { data } = await axios.post(`${API_BASE}/create`, req);
+    const { data } = await request.post('/strategy/create', req);
     return data;
   },
 
   start: async (strategyId: string) => {
-    const { data } = await axios.post(`${API_BASE}/${strategyId}/start`);
+    const { data } = await request.post(`/strategy/${strategyId}/start`);
     return data;
   },
 
   stop: async (strategyId: string) => {
-    const { data } = await axios.post(`${API_BASE}/${strategyId}/stop`);
+    const { data } = await request.post(`/strategy/${strategyId}/stop`);
     return data;
   },
 
   getLogs: async (strategyId: string) => {
-    const { data } = await axios.get<{ logs: string[] }>(`${API_BASE}/${strategyId}/logs`);
-    return data.logs;
+    const { data } = await request.get<{ logs: Array<{timestamp: string; level: string; message: string}> }>(`/strategy/${strategyId}/logs`);
+    return data;
+  },
+
+  getDetail: async (strategyId: string) => {
+    const { data } = await request.get(`/strategy/${strategyId}`);
+    return data;
+  },
+
+  update: async (strategyId: string, req: CreateStrategyRequest) => {
+    const { data } = await request.put(`/strategy/${strategyId}`, req);
+    return data;
   },
 };

@@ -43,16 +43,41 @@ class MockAdapter(BrokerAdapter):
         price: float | None = None
     ) -> str:
         order_id = f"MOCK_{len(self.orders) + 1}"
+        fill_price = price or 100.0
         order = OrderData(
             order_id=order_id,
             symbol=symbol,
             side=side,
             type=order_type,
             quantity=quantity,
-            price=price or 100.0,
+            price=fill_price,
             status=OrderStatus.FILLED
         )
         self.orders[order_id] = order
+
+        # 更新持仓
+        if symbol in self.positions:
+            pos = self.positions[symbol]
+            if side == OrderSide.BUY:
+                # 买入：增加持仓
+                total_cost = pos.avg_price * pos.quantity + fill_price * quantity
+                pos.quantity += quantity
+                pos.avg_price = total_cost / pos.quantity
+            else:
+                # 卖出：减少持仓
+                pos.quantity -= quantity
+                if pos.quantity <= 0:
+                    del self.positions[symbol]
+        else:
+            # 新建持仓
+            if side == OrderSide.BUY:
+                self.positions[symbol] = PositionData(
+                    symbol=symbol,
+                    quantity=quantity,
+                    avg_price=fill_price,
+                    unrealized_pnl=0.0
+                )
+
         return order_id
 
     async def cancel_order(self, order_id: str) -> bool:
@@ -73,7 +98,23 @@ class MockAdapter(BrokerAdapter):
         )
 
     async def get_positions(self) -> List[PositionData]:
-        return list(self.positions.values())
+        """获取持仓列表，并计算实时浮动盈亏"""
+        result = []
+        for symbol, pos in self.positions.items():
+            # 获取当前市场价格
+            tick = await self.get_tick(symbol)
+            current_price = tick.last_price
+
+            # 计算浮动盈亏 = (当前价 - 均价) × 持仓量
+            unrealized_pnl = (current_price - pos.avg_price) * pos.quantity
+
+            result.append(PositionData(
+                symbol=pos.symbol,
+                quantity=pos.quantity,
+                avg_price=pos.avg_price,
+                unrealized_pnl=unrealized_pnl
+            ))
+        return result
 
     async def get_klines(
         self,

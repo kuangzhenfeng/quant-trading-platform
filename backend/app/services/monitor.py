@@ -3,6 +3,7 @@ from app.models.schemas import OrderData, PositionData, OrderStatus
 from app.repositories.order_repo import OrderRepository
 from app.repositories.position_repo import PositionRepository
 from app.core.database import AsyncSessionLocal
+from app.core.config import settings, TradingMode
 
 
 class MonitorService:
@@ -29,23 +30,37 @@ class MonitorService:
 
     async def get_pnl_summary(self, broker: str | None = None) -> Dict:
         """获取 PnL 汇总"""
-        async with AsyncSessionLocal() as session:
-            repo = PositionRepository(session)
-            positions = await repo.get_all(broker)
-            total_pnl = sum(pos.unrealized_pnl for pos in positions)
-            return {
-                "total_pnl": total_pnl,
-                "position_count": len(positions),
-                "positions": [
-                    {
-                        "symbol": pos.symbol,
-                        "quantity": pos.quantity,
-                        "avg_price": pos.avg_price,
-                        "unrealized_pnl": pos.unrealized_pnl
-                    }
-                    for pos in positions
-                ]
-            }
+        positions: List[PositionData] = []
+
+        if settings.trading_mode == TradingMode.MOCK:
+            # MOCK 模式：从数据库读取
+            async with AsyncSessionLocal() as session:
+                repo = PositionRepository(session)
+                positions = await repo.get_all(broker)
+        else:
+            # PAPER/LIVE 模式：从 adapter 获取实时数据
+            from app.services.trading import trading_service
+            for broker_name, adapter in trading_service.adapters.items():
+                if broker and broker_name != broker:
+                    continue
+                if adapter.connected:
+                    broker_positions = await adapter.get_positions()
+                    positions.extend(broker_positions)
+
+        total_pnl = sum(pos.unrealized_pnl for pos in positions)
+        return {
+            "total_pnl": total_pnl,
+            "position_count": len(positions),
+            "positions": [
+                {
+                    "symbol": pos.symbol,
+                    "quantity": pos.quantity,
+                    "avg_price": pos.avg_price,
+                    "unrealized_pnl": pos.unrealized_pnl
+                }
+                for pos in positions
+            ]
+        }
 
     async def get_trade_stats(self, broker: str | None = None) -> Dict:
         """获取成交统计"""

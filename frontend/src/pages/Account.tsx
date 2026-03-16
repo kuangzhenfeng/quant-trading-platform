@@ -1,13 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Modal, Form, Input, Select, Switch, message } from 'antd';
-import { UserOutlined, PlusOutlined } from '@ant-design/icons';
+import { UserOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import { accountApi, type BrokerConfig } from '../services/account';
-import type { AccountFormValues } from '../types/api';
+
+const { TextArea } = Input;
 
 export default function Account() {
   const [accounts, setAccounts] = useState<BrokerConfig[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const [selectedBroker, setSelectedBroker] = useState<string>('');
+  const [importText, setImportText] = useState<string>('');
 
   const fetchAccounts = useCallback(async () => {
     const data = await accountApi.list();
@@ -19,17 +23,19 @@ export default function Account() {
     void fetchAccounts();
   }, [fetchAccounts]);
 
-  const handleAdd = async (values: AccountFormValues) => {
+  const handleAdd = async (values: Record<string, string>) => {
+    const { broker, name, ...configFields } = values;
     await accountApi.add({
-      id: `${values.broker}_${Date.now()}`,
-      broker: values.broker,
-      name: values.name,
-      config: JSON.parse(values.config || '{}'),
+      id: `${broker}_${Date.now()}`,
+      broker,
+      name,
+      config: configFields,
       active: true
     });
     message.success('账户添加成功');
     setModalOpen(false);
     form.resetFields();
+    setSelectedBroker('');
     fetchAccounts();
   };
 
@@ -40,8 +46,48 @@ export default function Account() {
   };
 
   const handleToggle = async (id: string, active: boolean) => {
+    if (active) {
+      const account = accounts.find(a => a.id === id);
+      const isPaper = account?.config.is_paper === 'true' || account?.config.is_paper === true;
+      const sameBrokerModeActive = accounts.find(a =>
+        a.broker === account?.broker &&
+        a.id !== id &&
+        a.active &&
+        (a.config.is_paper === 'true' || a.config.is_paper === true) === isPaper
+      );
+      if (sameBrokerModeActive) {
+        message.info(`已自动停用同平台同模式的账号：${sameBrokerModeActive.name}`);
+      }
+    }
     await accountApi.setActive(id, active);
+    message.success(active ? '账号已启用' : '账号已停用');
     fetchAccounts();
+  };
+
+  const handleImport = async () => {
+    try {
+      const json = JSON.parse(importText);
+      const result = await accountApi.batchImport(json.accounts);
+
+      if (result.success > 0) {
+        message.success(`成功导入 ${result.success} 个账户`);
+      }
+
+      if (result.failed && result.failed.length > 0) {
+        const errors = result.failed.map((f: { name: string; error: string }) =>
+          `${f.name}: ${f.error}`
+        ).join('\n');
+        message.error(`导入失败 ${result.failed.length} 个:\n${errors}`, 5);
+      }
+
+      setImportModalOpen(false);
+      setImportText('');
+      fetchAccounts();
+    } catch (e) {
+      const error = e as { response?: { data?: { detail?: string } }; message?: string };
+      const errorMsg = error.response?.data?.detail || error.message || '未知错误';
+      message.error('导入失败：' + errorMsg);
+    }
   };
 
   const brokerLabel: Record<string, string> = {
@@ -102,6 +148,33 @@ export default function Account() {
           {name}
         </span>
       ),
+    },
+    {
+      title: (
+        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--text-tertiary)' }}>
+          模式
+        </span>
+      ),
+      dataIndex: 'config',
+      key: 'mode',
+      render: (config: Record<string, unknown>) => {
+        const isPaper = config.is_paper === 'true' || config.is_paper === true;
+        return (
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 12,
+            fontWeight: 600,
+            color: isPaper ? 'var(--yellow-400)' : 'var(--loss)',
+            background: isPaper ? 'color-mix(in srgb, var(--yellow-400) 10%, transparent)' : 'color-mix(in srgb, var(--loss) 10%, transparent)',
+            border: isPaper ? '1px solid color-mix(in srgb, var(--yellow-400) 25%, transparent)' : '1px solid color-mix(in srgb, var(--loss) 25%, transparent)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '2px 8px',
+            letterSpacing: '0.3px',
+          }}>
+            {isPaper ? '模拟盘' : '实盘'}
+          </span>
+        );
+      },
     },
     {
       title: (
@@ -221,26 +294,46 @@ export default function Account() {
             </div>
           </div>
 
-          <Button
-            icon={<PlusOutlined />}
-            onClick={() => setModalOpen(true)}
-            style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: 13,
-              fontWeight: 600,
-              color: 'var(--bg-base)',
-              background: 'var(--cyan-400)',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              height: 34,
-              paddingInline: 16,
-              letterSpacing: '0.3px',
-              boxShadow: '0 0 12px color-mix(in srgb, var(--cyan-400) 35%, transparent)',
-              cursor: 'pointer',
-            }}
-          >
-            添加账户
-          </Button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              icon={<UploadOutlined />}
+              onClick={() => setImportModalOpen(true)}
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-sm)',
+                height: 34,
+                paddingInline: 16,
+                letterSpacing: '0.3px',
+              }}
+            >
+              批量导入
+            </Button>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() => setModalOpen(true)}
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--bg-base)',
+                background: 'var(--cyan-400)',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                height: 34,
+                paddingInline: 16,
+                letterSpacing: '0.3px',
+                boxShadow: '0 0 12px color-mix(in srgb, var(--cyan-400) 35%, transparent)',
+                cursor: 'pointer',
+              }}
+            >
+              添加账户
+            </Button>
+          </div>
         </div>
 
         {/* Table */}
@@ -336,7 +429,7 @@ export default function Account() {
             }
             rules={[{ required: true, message: '请选择平台' }]}
           >
-            <Select placeholder="选择交易平台">
+            <Select placeholder="选择交易平台" onChange={(value) => setSelectedBroker(value)}>
               <Select.Option value="okx">OKX</Select.Option>
               <Select.Option value="guojin">国金证券</Select.Option>
               <Select.Option value="moomoo">moomoo</Select.Option>
@@ -362,28 +455,91 @@ export default function Account() {
             <Input placeholder="例如：主账户、测试账户" />
           </Form.Item>
 
-          <Form.Item
-            name="config"
-            label={
-              <span style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 12,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                color: 'var(--text-secondary)',
-              }}>
-                配置 (JSON)
-              </span>
-            }
-          >
-            <Input.TextArea
-              rows={4}
-              placeholder='{"api_key": "xxx"}'
-              style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}
-            />
-          </Form.Item>
+          {selectedBroker === 'okx' && (
+            <>
+              <Form.Item name="api_key" label="API Key" rules={[{ required: true }]}>
+                <Input.Password placeholder="输入 API Key" />
+              </Form.Item>
+              <Form.Item name="secret_key" label="Secret Key" rules={[{ required: true }]}>
+                <Input.Password placeholder="输入 Secret Key" />
+              </Form.Item>
+              <Form.Item name="passphrase" label="Passphrase" rules={[{ required: true }]}>
+                <Input.Password placeholder="输入 Passphrase" />
+              </Form.Item>
+              <Form.Item name="is_paper" label="交易模式" initialValue="true">
+                <Select>
+                  <Select.Option value="true">模拟盘</Select.Option>
+                  <Select.Option value="false">实盘</Select.Option>
+                </Select>
+              </Form.Item>
+            </>
+          )}
+
+          {selectedBroker === 'moomoo' && (
+            <>
+              <Form.Item name="host" label="Host" rules={[{ required: true }]} initialValue="127.0.0.1">
+                <Input placeholder="127.0.0.1" />
+              </Form.Item>
+              <Form.Item name="port" label="Port" rules={[{ required: true }]} initialValue="11111">
+                <Input placeholder="11111" />
+              </Form.Item>
+              <Form.Item name="is_paper" label="交易模式" initialValue="true">
+                <Select>
+                  <Select.Option value="true">模拟盘</Select.Option>
+                  <Select.Option value="false">实盘</Select.Option>
+                </Select>
+              </Form.Item>
+            </>
+          )}
+
+          {selectedBroker === 'guojin' && (
+            <>
+              <Form.Item name="account_id" label="账户 ID" rules={[{ required: true }]}>
+                <Input.Password placeholder="输入账户 ID" />
+              </Form.Item>
+              <Form.Item name="password" label="密码" rules={[{ required: true }]}>
+                <Input.Password placeholder="输入密码" />
+              </Form.Item>
+            </>
+          )}
         </Form>
+      </Modal>
+
+      {/* Import Modal */}
+      <Modal
+        title="批量导入账户"
+        open={importModalOpen}
+        onCancel={() => {
+          setImportModalOpen(false);
+          setImportText('');
+        }}
+        onOk={handleImport}
+        okText="导入"
+        cancelText="取消"
+        width={600}
+      >
+        <TextArea
+          rows={16}
+          placeholder={`粘贴 JSON 格式的账户配置，例如：
+
+{
+  "accounts": [
+    {
+      "broker": "okx",
+      "name": "OKX账户",
+      "config": {
+        "api_key": "xxx",
+        "secret_key": "xxx",
+        "passphrase": "xxx",
+        "mode": "paper"
+      }
+    }
+  ]
+}`}
+          value={importText}
+          onChange={(e) => setImportText(e.target.value)}
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 13, marginTop: 16 }}
+        />
       </Modal>
     </div>
   );

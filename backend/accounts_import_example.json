@@ -1,0 +1,32 @@
+{
+  "accounts": [
+    {
+      "broker": "guojin",
+      "name": "国金证券",
+      "config": {
+        "account_id": "12345678",
+        "password": "your_password",
+        "trading_password": "your_trading_pwd"
+      }
+    },
+    {
+      "broker": "moomoo",
+      "name": "富途证券",
+      "config": {
+        "host": "127.0.0.1",
+        "port": 11111,
+        "unlock_password": "your_unlock_pwd"
+      }
+    },
+    {
+      "broker": "okx",
+      "name": "OKX",
+      "config": {
+        "api_key": "your_api_key",
+        "secret_key": "your_secret_key",
+        "passphrase": "your_passphrase",
+        "is_paper": "true"
+      }
+    }
+  ]
+}

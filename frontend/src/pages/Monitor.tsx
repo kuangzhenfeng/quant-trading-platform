@@ -1,24 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, Statistic, Table, Tag } from 'antd';
+import { Card, Statistic, Table } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import { monitorApi } from '../services/monitor';
-import type { StrategiesResponse, PnLData, StatsData, Strategy } from '../types/api';
+import type { PnLData, StatsData } from '../types/api';
 import './Monitor.css';
 
 export default function Monitor() {
   const [pnl, setPnl] = useState<PnLData | null>(null);
   const [stats, setStats] = useState<StatsData | null>(null);
-  const [strategies, setStrategies] = useState<Strategy[]>([]);
 
   const fetchData = useCallback(async () => {
-    const [pnlData, statsData, strategyData] = await Promise.all([
+    const [pnlData, statsData] = await Promise.all([
       monitorApi.getPnL(),
-      monitorApi.getStats(),
-      monitorApi.getStrategies()
+      monitorApi.getStats()
     ]);
     setPnl(pnlData as PnLData);
     setStats(statsData as StatsData);
-    setStrategies((strategyData as StrategiesResponse).strategies);
   }, []);
 
   useEffect(() => {
@@ -48,30 +45,6 @@ export default function Monitor() {
         </span>
       )
     }
-  ];
-
-  const strategyColumns = [
-    { title: 'ID', dataIndex: 'id', key: 'id' },
-    { title: '平台', dataIndex: 'broker', key: 'broker' },
-    {
-      title: '状态',
-      dataIndex: 'running',
-      key: 'running',
-      render: (running: boolean) => (
-        <Tag color={running ? 'success' : 'default'} style={{
-          background: running
-            ? 'rgba(52, 211, 153, 0.12)'
-            : 'rgba(148, 163, 184, 0.1)',
-          color: running ? 'var(--gain)' : 'var(--text-secondary)',
-          borderColor: running
-            ? 'rgba(52, 211, 153, 0.3)'
-            : 'rgba(148, 163, 184, 0.2)'
-        }}>
-          {running ? '● 运行中' : '○ 已停止'}
-        </Tag>
-      )
-    },
-    { title: '日志数', dataIndex: 'log_count', key: 'log_count' }
   ];
 
   const pnlValue = pnl?.total_pnl || 0;
@@ -139,16 +112,6 @@ export default function Monitor() {
           dataSource={pnl?.positions || []}
           columns={positionColumns}
           rowKey="symbol"
-          pagination={false}
-        />
-      </Card>
-
-      {/* Strategy Status Table */}
-      <Card title="策略状态" className="table-card animate-in stagger-6">
-        <Table
-          dataSource={strategies}
-          columns={strategyColumns}
-          rowKey="id"
           pagination={false}
         />
       </Card>

@@ -16,7 +16,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 定义公共端点（完全匹配）
-        public_endpoints = {"/health", "/api/auth/login", "/api/auth/register", "/api/trading/mode"}
+        public_endpoints = {"/health", "/api/auth/login", "/api/auth/register", "/api/trading/mode", "/api/system/init-status"}
 
         # 如果是公共端点，直接放行
         if request.url.path in public_endpoints:
@@ -42,7 +42,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             # 将用户名附加到 request state
             request.state.user = payload.get("sub")
         else:
-            # 认证已禁用：使用默认用户
-            request.state.user = settings.AUTH_DEFAULT_USERNAME
+            # 认证已禁用：使用匿名用户
+            request.state.user = "anonymous"
 
         return await call_next(request)

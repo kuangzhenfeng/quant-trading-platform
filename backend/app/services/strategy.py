@@ -15,14 +15,15 @@ class StrategyEngine:
 
     async def register(self, strategy_id: str, strategy: Strategy, broker: str, params: dict):
         """注册策略并保存到数据库"""
-        ctx = StrategyContext(broker, self.trading_service, self.market_service)
+        ctx = StrategyContext(broker, self.trading_service, self.market_service, strategy_id)
         strategy.init(ctx)
         self.strategies[strategy_id] = (strategy, ctx, False)
 
         # 保存到数据库
+        symbol = params.get("symbol", "")
         async with AsyncSessionLocal() as session:
             repo = StrategyRepository(session)
-            await repo.save_config(strategy_id, broker, "", params)
+            await repo.save_config(strategy_id, broker, symbol, params)
 
     async def start(self, strategy_id: str):
         """启动策略"""
@@ -77,11 +78,8 @@ class StrategyEngine:
                 try:
                     await strategy.on_tick(data)
                 except Exception as e:
-                    ctx.log(f"策略执行错误: {e}")
-
-                    from app.services.log import log_service
                     from app.models.schemas import LogLevel
-                    log_service.log(LogLevel.ERROR, "strategy", f"策略 {strategy.name} 执行错误: {e}")
+                    ctx.log(f"策略执行错误: {e}", LogLevel.ERROR)
 
     def get_logs(self, strategy_id: str) -> list[str]:
         """获取策略日志"""
@@ -89,6 +87,58 @@ class StrategyEngine:
             return []
         _, ctx, _ = self.strategies[strategy_id]
         return ctx.logs
+
+    async def get_detail(self, strategy_id: str):
+        """获取策略详情"""
+        from sqlalchemy import select
+        from app.models.db_models import DBStrategyConfig
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(DBStrategyConfig)
+                .where(DBStrategyConfig.strategy_id == strategy_id)
+                .order_by(DBStrategyConfig.id.desc())
+            )
+            config = result.scalars().first()
+            if not config:
+                return None
+
+            running = strategy_id in self.strategies and self.strategies[strategy_id][2]
+            return {
+                "strategy_id": config.strategy_id,
+                "broker": config.broker,
+                "params": config.params,
+                "running": running
+            }
+
+    async def update_params(self, strategy_id: str, params: dict):
+        """更新策略参数"""
+        from sqlalchemy import update
+        from app.models.db_models import DBStrategyConfig
+        from app.strategies.registry import StrategyRegistry
+
+        if strategy_id not in self.strategies:
+            return False
+
+        # 更新数据库
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                update(DBStrategyConfig)
+                .where(DBStrategyConfig.strategy_id == strategy_id)
+                .values(params=params)
+            )
+            await session.commit()
+
+        # 重新创建策略实例
+        strategy, ctx, running = self.strategies[strategy_id]
+        parts = strategy_id.rsplit('_', 2)
+        if len(parts) >= 2:
+            strategy_type = parts[0]
+            new_strategy = StrategyRegistry.create(strategy_type, f"{strategy_type}策略", params)
+            new_strategy.init(ctx)
+            self.strategies[strategy_id] = (new_strategy, ctx, running)
+
+        return True
 
     async def restore_from_db(self):
         """从数据库恢复策略配置和运行状态"""
@@ -102,12 +152,12 @@ class StrategyEngine:
 
             for config in configs:
                 try:
-                    # 从 strategy_id 解析 strategy_type (格式: {type}_{broker})
-                    parts = config.strategy_id.rsplit('_', 1)
-                    if len(parts) == 2:
+                    # 从 strategy_id 解析 strategy_type (格式: {type}_{broker}_{symbol})
+                    parts = config.strategy_id.rsplit('_', 2)
+                    if len(parts) >= 2:
                         strategy_type = parts[0]
                         strategy = StrategyRegistry.create(strategy_type, f"{strategy_type}策略", config.params)
-                        ctx = StrategyContext(config.broker, self.trading_service, self.market_service)
+                        ctx = StrategyContext(config.broker, self.trading_service, self.market_service, config.strategy_id)
                         strategy.init(ctx)
                         # 恢复运行状态
                         running = config.active

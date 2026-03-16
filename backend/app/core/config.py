@@ -7,6 +7,11 @@ class TradingMode(str, Enum):
     PAPER = "paper"  # 模拟盘
     MOCK = "mock"    # Mock 模式
 
+class Broker(str, Enum):
+    OKX = "okx"
+    MOOMOO = "moomoo"
+    GUOJIN = "guojin"
+
 class Settings(BaseSettings):
     app_name: str = "Quant Trading Platform"
     api_host: str = "0.0.0.0"
@@ -16,35 +21,14 @@ class Settings(BaseSettings):
     # 交易模式
     trading_mode: TradingMode = TradingMode.MOCK
 
-    # OKX Live
-    okx_live_api_key: str = ""
-    okx_live_secret_key: str = ""
-    okx_live_passphrase: str = ""
-
-    # OKX Paper
-    okx_paper_api_key: str = ""
-    okx_paper_secret_key: str = ""
-    okx_paper_passphrase: str = ""
-
-    # Moomoo Live
-    moomoo_live_host: str = ""
-    moomoo_live_port: int = 0
-
-    # Moomoo Paper
-    moomoo_paper_host: str = ""
-    moomoo_paper_port: int = 0
-
-    # 国金证券 Live
-    guojin_live_account_id: str = ""
-    guojin_live_password: str = ""
+    # 当前券商
+    current_broker: Broker = Broker.OKX
 
     # 数据库配置
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/quant_trading"
 
     # 认证配置
     AUTH_ENABLED: bool = False
-    AUTH_DEFAULT_USERNAME: str = "admin"
-    AUTH_DEFAULT_PASSWORD: str = "admin123"
     AUTH_JWT_SECRET: str = "your-secret-key-change-in-production"
     AUTH_JWT_ALGORITHM: str = "HS256"
     AUTH_ACCESS_TOKEN_EXPIRE_DAYS: int = 7
@@ -53,16 +37,27 @@ class Settings(BaseSettings):
         env_file = ".env"
         extra = "ignore"  # 忽略额外的环境变量
 
-    def get_broker_config(self, broker: str, mode: TradingMode) -> Dict[str, Any]:
-        """获取指定平台和模式的配置"""
-        prefix = f"{broker}_{mode.value}_"
-        config = {}
 
-        for field_name, field_value in self.model_dump().items():
-            if field_name.startswith(prefix):
-                key = field_name[len(prefix):]
-                config[key] = field_value
+    async def load_from_db(self):
+        """从数据库加载配置"""
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.models.db_models import DBSystemConfig
 
-        return config
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(DBSystemConfig))
+            configs = result.scalars().all()
+
+            for config in configs:
+                key_lower = config.key.lower()
+                if hasattr(self, key_lower) and config.value:
+                    # 处理枚举类型
+                    field_type = type(getattr(self, key_lower))
+                    if field_type == TradingMode:
+                        setattr(self, key_lower, TradingMode(config.value))
+                    elif field_type == Broker:
+                        setattr(self, key_lower, Broker(config.value))
+                    else:
+                        setattr(self, key_lower, config.value)
 
 settings = Settings()

@@ -10,7 +10,9 @@ import Account from './pages/Account';
 import Users from './pages/Users';
 import Logs from './pages/Logs';
 import Backtest from './pages/Backtest';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
+import Setup from './pages/Setup';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function App() {
@@ -67,9 +69,10 @@ export default function App() {
         },
       }}
     >
-      <AntApp>
-        <BrowserRouter>
+      <BrowserRouter>
+        <AntApp>
           <Routes>
+            <Route path="/setup" element={<Setup />} />
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />
@@ -79,12 +82,13 @@ export default function App() {
               <Route path="monitor" element={<Monitor />} />
               <Route path="users" element={<Users />} />
               <Route path="account" element={<Account />} />
+              <Route path="settings" element={<Settings />} />
               <Route path="logs" element={<Logs />} />
               <Route path="backtest" element={<Backtest />} />
             </Route>
           </Routes>
-        </BrowserRouter>
-      </AntApp>
+        </AntApp>
+      </BrowserRouter>
     </ConfigProvider>
   );
 }

@@ -80,7 +80,11 @@ class TradingService:
 
         # 记录订单
         order = await adapter.get_order(order_id, symbol)
-        get_monitor_service().add_order(order)
+        await get_monitor_service().add_order(order, broker)
+
+        # 更新持仓到数据库
+        positions = await adapter.get_positions()
+        await get_monitor_service().update_positions(broker, positions)
 
         from app.models.schemas import LogLevel
         get_log_service().log(LogLevel.INFO, "trading", f"下单成功: {broker} {symbol} {side.value} {quantity}")

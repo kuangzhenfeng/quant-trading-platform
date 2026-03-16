@@ -1,12 +1,4 @@
-import axios from 'axios';
-import { authService } from './auth';
-
-const API_BASE = 'http://localhost:9000/api/account';
-
-const getAuthHeaders = () => {
-  const token = authService.getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
+import request from './request';
 
 export interface BrokerConfig {
   id: string;
@@ -18,22 +10,27 @@ export interface BrokerConfig {
 
 export const accountApi = {
   list: async () => {
-    const { data } = await axios.get(`${API_BASE}/`, { headers: getAuthHeaders() });
+    const { data } = await request.get('/account/');
     return data;
   },
 
   add: async (config: BrokerConfig) => {
-    const { data } = await axios.post(`${API_BASE}/`, config, { headers: getAuthHeaders() });
+    const { data } = await request.post('/account/', config);
     return data;
   },
 
   remove: async (accountId: string) => {
-    const { data } = await axios.delete(`${API_BASE}/${accountId}`, { headers: getAuthHeaders() });
+    const { data } = await request.delete(`/account/${accountId}`);
     return data;
   },
 
   setActive: async (accountId: string, active: boolean) => {
-    const { data } = await axios.put(`${API_BASE}/${accountId}/active?active=${active}`, {}, { headers: getAuthHeaders() });
+    const { data } = await request.put(`/account/${accountId}/active`, { active });
+    return data;
+  },
+
+  batchImport: async (accounts: Array<{ broker: string; name: string; config: Record<string, unknown> }>) => {
+    const { data } = await request.post('/account/batch-import', { accounts });
     return data;
   }
 };

@@ -1,17 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Select, InputNumber, Button, Space, message } from 'antd';
+import { Select, InputNumber, Button, Space, message, Table, Tag, Modal, List } from 'antd';
 import {
   RocketOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
-  ReloadOutlined,
   SettingOutlined,
-  CodeOutlined,
   TagOutlined,
   ApartmentOutlined,
+  UnorderedListOutlined,
+  EditOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { strategyApi } from '../services/strategy';
-import type { ApiError } from '../types/api';
+import { monitorApi } from '../services/monitor';
+import type { ApiError, Strategy, StrategiesResponse } from '../types/api';
 import { useBrokerStore } from '../stores/brokerStore';
 
 const FIELD_LABEL_STYLE: React.CSSProperties = {
@@ -58,8 +60,12 @@ export default function Strategy() {
   const [overbought, setOverbought] = useState(70);
   const [quantity, setQuantity] = useState(0.01);
   const [strategyId, setStrategyId] = useState('');
-  const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingStrategy, setEditingStrategy] = useState<{id: string; params: Record<string, unknown>} | null>(null);
+  const [logModalVisible, setLogModalVisible] = useState(false);
+  const [logs, setLogs] = useState<Array<{timestamp: string; level: string; message: string}>>([]);
 
   const handleCreate = async () => {
     setLoading(true);
@@ -83,6 +89,7 @@ export default function Strategy() {
       });
       setStrategyId(result.strategy_id);
       message.success('策略创建成功');
+      fetchStrategies();
     } catch (error: unknown) {
       message.error((error as ApiError).response?.data?.detail || '创建失败');
     } finally {
@@ -90,42 +97,162 @@ export default function Strategy() {
     }
   };
 
-  const handleStart = async () => {
-    if (!strategyId) return;
+  const handleStartStrategy = async (id: string) => {
     try {
-      await strategyApi.start(strategyId);
+      await strategyApi.start(id);
       message.success('策略已启动');
+      fetchStrategies();
     } catch (error: unknown) {
       message.error((error as ApiError).response?.data?.detail || '启动失败');
     }
   };
 
-  const handleStop = async () => {
-    if (!strategyId) return;
+  const handleStopStrategy = async (id: string) => {
     try {
-      await strategyApi.stop(strategyId);
+      await strategyApi.stop(id);
       message.success('策略已停止');
+      fetchStrategies();
     } catch (error: unknown) {
       message.error((error as ApiError).response?.data?.detail || '停止失败');
     }
   };
 
-  const handleRefreshLogs = useCallback(async () => {
-    if (!strategyId) return;
+  const handleEditStrategy = async (id: string) => {
     try {
-      const logs = await strategyApi.getLogs(strategyId);
-      setLogs(logs);
-    } catch {
-      message.error('获取日志失败');
+      const detail = await strategyApi.getDetail(id);
+      setEditingStrategy({ id, params: detail.params });
+      setEditModalVisible(true);
+    } catch (error: unknown) {
+      message.error((error as ApiError).response?.data?.detail || '获取策略详情失败');
     }
-  }, [strategyId]);
+  };
+
+  const handleUpdateStrategy = async () => {
+    if (!editingStrategy) return;
+    try {
+      const parts = editingStrategy.id.split('_');
+      const strategyType = parts[0];
+      const broker = parts.length >= 2 ? parts[1] : '';
+      await strategyApi.update(editingStrategy.id, {
+        strategy_type: strategyType,
+        broker,
+        params: editingStrategy.params
+      });
+      message.success('策略参数已更新');
+      setEditModalVisible(false);
+      setEditingStrategy(null);
+      fetchStrategies();
+    } catch (error: unknown) {
+      message.error((error as ApiError).response?.data?.detail || '更新失败');
+    }
+  };
+
+  const handleViewLogs = async (id: string) => {
+    try {
+      const data = await strategyApi.getLogs(id);
+      setLogs(data.logs);
+      setLogModalVisible(true);
+    } catch (error: unknown) {
+      message.error((error as ApiError).response?.data?.detail || '获取日志失败');
+    }
+  };
+
+  const fetchStrategies = useCallback(async () => {
+    try {
+      const data = await monitorApi.getStrategies();
+      setStrategies((data as StrategiesResponse).strategies);
+    } catch {
+      // 静默失败
+    }
+  }, []);
 
   useEffect(() => {
-    if (!strategyId) return;
-    handleRefreshLogs();
-    const interval = setInterval(handleRefreshLogs, 5000);
+    fetchStrategies();
+    const interval = setInterval(fetchStrategies, 3000);
     return () => clearInterval(interval);
-  }, [strategyId, handleRefreshLogs]);
+  }, [fetchStrategies]);
+
+  const strategyColumns = [
+    { title: 'ID', dataIndex: 'id', key: 'id' },
+    { title: '平台', dataIndex: 'broker', key: 'broker' },
+    {
+      title: '交易对',
+      dataIndex: 'id',
+      key: 'symbol',
+      render: (id: string) => {
+        const parts = id.split('_');
+        return parts.length >= 3 ? parts.slice(2).join('_') : '-';
+      }
+    },
+    {
+      title: '状态',
+      dataIndex: 'running',
+      key: 'running',
+      render: (running: boolean) => (
+        <Tag color={running ? 'success' : 'default'} style={{
+          background: running
+            ? 'rgba(52, 211, 153, 0.12)'
+            : 'rgba(148, 163, 184, 0.1)',
+          color: running ? 'var(--gain)' : 'var(--text-secondary)',
+          borderColor: running
+            ? 'rgba(52, 211, 153, 0.3)'
+            : 'rgba(148, 163, 184, 0.2)'
+        }}>
+          {running ? '● 运行中' : '○ 已停止'}
+        </Tag>
+      )
+    },
+    { title: '日志数', dataIndex: 'log_count', key: 'log_count' },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_: unknown, record: Strategy) => (
+        <Space size={8}>
+          <Button
+            size="small"
+            icon={<FileTextOutlined />}
+            onClick={() => handleViewLogs(record.id)}
+          >
+            日志
+          </Button>
+          <Button
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleEditStrategy(record.id)}
+          >
+            编辑
+          </Button>
+          {!record.running ? (
+            <Button
+              size="small"
+              icon={<PlayCircleOutlined />}
+              onClick={() => handleStartStrategy(record.id)}
+              style={{
+                color: 'var(--gain)',
+                borderColor: 'rgba(52, 211, 153, 0.35)',
+                background: 'rgba(52, 211, 153, 0.08)',
+              }}
+            >
+              启动
+            </Button>
+          ) : (
+            <Button
+              size="small"
+              icon={<PauseCircleOutlined />}
+              onClick={() => handleStopStrategy(record.id)}
+              style={{
+                color: 'var(--loss)',
+                borderColor: 'rgba(248, 113, 113, 0.35)',
+                background: 'rgba(248, 113, 113, 0.08)',
+              }}
+            >
+              停止
+            </Button>
+          )}
+        </Space>
+      )
+    }
+  ];
 
   return (
     <div>
@@ -324,65 +451,21 @@ export default function Strategy() {
 
           {/* Row 3: Action Buttons + Strategy ID badge */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-            <Space size={8}>
-              <Button
-                type="primary"
-                icon={<RocketOutlined />}
-                onClick={handleCreate}
-                loading={loading}
-                style={{
-                  fontWeight: 700,
-                  letterSpacing: '0.3px',
-                  background: 'linear-gradient(135deg, var(--cyan-500), var(--cyan-400))',
-                  border: 'none',
-                  boxShadow: '0 4px 14px rgba(34, 211, 238, 0.25)',
-                }}
-              >
-                创建策略
-              </Button>
-              <Button
-                icon={<PlayCircleOutlined />}
-                onClick={handleStart}
-                disabled={!strategyId}
-                style={{
-                  fontWeight: 600,
-                  ...(strategyId
-                    ? {
-                        color: 'var(--gain)',
-                        borderColor: 'rgba(52, 211, 153, 0.35)',
-                        background: 'rgba(52, 211, 153, 0.08)',
-                      }
-                    : {}),
-                }}
-              >
-                启动
-              </Button>
-              <Button
-                icon={<PauseCircleOutlined />}
-                onClick={handleStop}
-                disabled={!strategyId}
-                style={{
-                  fontWeight: 600,
-                  ...(strategyId
-                    ? {
-                        color: 'var(--loss)',
-                        borderColor: 'rgba(248, 113, 113, 0.35)',
-                        background: 'rgba(248, 113, 113, 0.08)',
-                      }
-                    : {}),
-                }}
-              >
-                停止
-              </Button>
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={handleRefreshLogs}
-                disabled={!strategyId}
-                style={{ fontWeight: 600 }}
-              >
-                刷新日志
-              </Button>
-            </Space>
+            <Button
+              type="primary"
+              icon={<RocketOutlined />}
+              onClick={handleCreate}
+              loading={loading}
+              style={{
+                fontWeight: 700,
+                letterSpacing: '0.3px',
+                background: 'linear-gradient(135deg, var(--cyan-500), var(--cyan-400))',
+                border: 'none',
+                boxShadow: '0 4px 14px rgba(34, 211, 238, 0.25)',
+              }}
+            >
+              创建策略
+            </Button>
 
             {/* Strategy ID Badge */}
             {strategyId && (
@@ -420,104 +503,81 @@ export default function Strategy() {
         </div>
       </div>
 
-      {/* Strategy Logs Card */}
+      {/* Strategy Status Card */}
       <div
         className="animate-in stagger-2"
-        style={CARD_STYLE}
+        style={{ ...CARD_STYLE, marginTop: 16 }}
       >
-        {/* Section Header */}
         <div style={{ ...SECTION_HEADER_STYLE, marginBottom: 16 }}>
-          <CodeOutlined style={{ color: 'var(--amber-400)', fontSize: 15 }} />
-          策略日志
-          {logs.length > 0 && (
-            <span style={{
-              marginLeft: 4,
-              padding: '2px 8px',
-              background: 'rgba(251, 191, 36, 0.1)',
-              border: '1px solid rgba(251, 191, 36, 0.2)',
-              borderRadius: 99,
-              fontSize: 11,
-              fontFamily: 'var(--font-mono)',
-              color: 'var(--amber-400)',
-              fontWeight: 600,
-            }}>
-              {logs.length}
-            </span>
-          )}
+          <UnorderedListOutlined style={{ color: 'var(--cyan-400)', fontSize: 15 }} />
+          策略状态
         </div>
-
-        {/* Terminal Container */}
-        <div style={{
-          background: 'var(--bg-void)',
-          border: '1px solid var(--border-default)',
-          borderRadius: 'var(--radius-sm)',
-          maxHeight: 400,
-          overflow: 'auto',
-          padding: '4px 0',
-        }}>
-          {/* Terminal Top Bar */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px 10px',
-            borderBottom: '1px solid var(--border-subtle)',
-            marginBottom: 4,
-          }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f87171', display: 'inline-block' }} />
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fbbf24', display: 'inline-block' }} />
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} />
-            <span style={{
-              marginLeft: 8,
-              fontSize: 11,
-              fontFamily: 'var(--font-mono)',
-              color: 'var(--text-muted)',
-              letterSpacing: '0.5px',
-            }}>
-              strategy.log
-            </span>
-          </div>
-
-          {logs.length === 0 ? (
-            <div style={{
-              textAlign: 'center',
-              padding: '36px 20px',
-              color: 'var(--text-muted)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 13,
-            }}>
-              <span style={{ opacity: 0.5 }}>{'>'}</span>
-              {' '}
-              <span style={{ color: 'var(--text-tertiary)' }}>
-                {strategyId ? '暂无日志...' : '请先创建并启动策略'}
-              </span>
-            </div>
-          ) : (
-            logs.map((log, index) => (
-              <div
-                key={index}
-                style={{
-                  padding: '5px 14px',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 12,
-                  color: 'var(--text-secondary)',
-                  borderBottom: index < logs.length - 1 ? '1px solid rgba(148, 163, 184, 0.04)' : 'none',
-                  lineHeight: 1.7,
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'flex-start',
-                }}
-              >
-                <span style={{ color: 'var(--text-muted)', userSelect: 'none', minWidth: 24, textAlign: 'right', fontWeight: 500 }}>
-                  {String(index + 1).padStart(2, '0')}
-                </span>
-                <span style={{ color: 'var(--cyan-400)', opacity: 0.6, userSelect: 'none' }}>{'>'}</span>
-                <span style={{ flex: 1, wordBreak: 'break-all' }}>{log}</span>
-              </div>
-            ))
-          )}
-        </div>
+        <Table
+          dataSource={strategies}
+          columns={strategyColumns}
+          rowKey="id"
+          pagination={false}
+        />
       </div>
+
+      {/* Edit Modal */}
+      <Modal
+        title="编辑策略参数"
+        open={editModalVisible}
+        onOk={handleUpdateStrategy}
+        onCancel={() => {
+          setEditModalVisible(false);
+          setEditingStrategy(null);
+        }}
+        okText="更新"
+        cancelText="取消"
+      >
+        {editingStrategy && (
+          <Space direction="vertical" style={{ width: '100%' }} size={16}>
+            {Object.entries(editingStrategy.params)
+              .filter(([key]) => key !== 'symbol' && key !== 'quantity')
+              .map(([key, value]) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ minWidth: 100 }}>{key}:</span>
+                  <InputNumber
+                    value={value as number}
+                    onChange={(v) => setEditingStrategy({
+                      ...editingStrategy,
+                      params: { ...editingStrategy.params, [key]: v || 0 }
+                    })}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+              ))}
+          </Space>
+        )}
+      </Modal>
+
+      {/* Log Modal */}
+      <Modal
+        title="策略日志"
+        open={logModalVisible}
+        onCancel={() => setLogModalVisible(false)}
+        footer={null}
+        width={800}
+      >
+        <List
+          dataSource={logs}
+          renderItem={(log) => (
+            <List.Item>
+              <div style={{ width: '100%' }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                  <Tag color={log.level === 'error' ? 'red' : log.level === 'warning' ? 'orange' : 'blue'}>
+                    {log.level.toUpperCase()}
+                  </Tag>
+                  <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{log.timestamp}</span>
+                </div>
+                <div>{log.message}</div>
+              </div>
+            </List.Item>
+          )}
+        />
+      </Modal>
     </div>
   );
 }

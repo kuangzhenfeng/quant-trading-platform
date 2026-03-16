@@ -1,9 +1,11 @@
 import { create } from 'zustand';
+import { systemApi } from '../services/system';
 
 interface TradingModeState {
   mode: 'live' | 'paper' | 'mock';
   description: string;
   fetchMode: () => Promise<void>;
+  setMode: (mode: 'live' | 'paper' | 'mock') => Promise<void>;
 }
 
 export const useTradingModeStore = create<TradingModeState>((set) => ({
@@ -17,5 +19,14 @@ export const useTradingModeStore = create<TradingModeState>((set) => ({
     } catch (error) {
       console.error('Failed to fetch trading mode:', error);
     }
+  },
+  setMode: async (mode: 'live' | 'paper' | 'mock') => {
+    await systemApi.updateConfig([{
+      key: 'TRADING_MODE',
+      value: mode,
+      category: 'system',
+      is_sensitive: false,
+    }]);
+    set({ mode });
   },
 }));

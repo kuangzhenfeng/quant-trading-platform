@@ -45,5 +45,17 @@ export const useMarketWebSocket = (
     }
   };
 
-  return { subscribe };
+  const unsubscribe = () => {
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({
+        action: 'unsubscribe'
+      }));
+    }
+  };
+
+  const disconnect = () => {
+    ws.current?.close();
+  };
+
+  return { subscribe, unsubscribe, disconnect };
 };

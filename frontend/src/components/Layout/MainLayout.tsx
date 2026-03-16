@@ -16,11 +16,13 @@ import {
   TeamOutlined,
   ReloadOutlined,
   UserOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import { useTradingModeStore } from '../../stores/tradingModeStore';
 import { useBrokerStore } from '../../stores/brokerStore';
 import { authService } from '../../services/auth';
 import { systemApi } from '../../services/system';
+import { useWebSocketStatus } from '../../hooks/useWebSocketStatus';
 
 const { Content } = Layout;
 
@@ -30,10 +32,11 @@ const navItems = [
   { key: '/trading', icon: <SwapOutlined />, label: '交易' },
   { key: '/strategy', icon: <RocketOutlined />, label: '策略' },
   { key: '/monitor', icon: <MonitorOutlined />, label: '监控' },
+  { key: '/backtest', icon: <ExperimentOutlined />, label: '回测' },
   { key: '/users', icon: <TeamOutlined />, label: '用户管理' },
   { key: '/account', icon: <BankOutlined />, label: '券商账户' },
+  { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
   { key: '/logs', icon: <FileTextOutlined />, label: '日志' },
-  { key: '/backtest', icon: <ExperimentOutlined />, label: '回测' },
 ];
 
 function LiveClock() {
@@ -49,42 +52,88 @@ function LiveClock() {
   );
 }
 
-function ModeIndicator() {
-  const { mode, fetchMode } = useTradingModeStore();
+function ModeIndicator({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
+  const { mode, fetchMode, setMode } = useTradingModeStore();
   useEffect(() => { fetchMode(); }, [fetchMode]);
 
   const config: Record<string, { label: string; color: string; bg: string }> = {
-    live: { label: 'LIVE', color: '#f87171', bg: 'rgba(248, 113, 113, 0.12)' },
-    paper: { label: 'PAPER', color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.12)' },
+    live: { label: '实盘', color: '#f87171', bg: 'rgba(248, 113, 113, 0.12)' },
+    paper: { label: '模拟盘', color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.12)' },
     mock: { label: 'MOCK', color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)' },
   };
   const c = config[mode];
 
+  const handleModeChange = async (newMode: 'live' | 'paper' | 'mock') => {
+    try {
+      await setMode(newMode);
+      message.success(`已切换到${config[newMode].label}模式`);
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || '切换失败');
+    }
+  };
+
   return (
-    <div style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 6,
-      padding: '3px 10px',
-      borderRadius: 99,
-      background: c.bg,
-      border: `1px solid ${c.color}30`,
-      fontSize: 10,
-      fontWeight: 700,
-      fontFamily: 'var(--font-mono)',
-      color: c.color,
-      letterSpacing: '1.5px',
-    }}>
-      <span style={{
-        width: 6,
-        height: 6,
-        borderRadius: '50%',
-        background: c.color,
-        boxShadow: `0 0 8px ${c.color}80`,
-        animation: mode === 'live' ? 'pulse-soft 1.5s ease-in-out infinite' : 'none',
-      }} />
-      {c.label}
-    </div>
+    <Select
+      value={mode}
+      onChange={handleModeChange}
+      onDropdownVisibleChange={onOpenChange}
+      size="small"
+      style={{ width: 100 }}
+      options={[
+        { label: 'MOCK', value: 'mock' },
+        { label: '模拟盘', value: 'paper' },
+        { label: '实盘', value: 'live' },
+      ]}
+      optionRender={(option) => {
+        const optConfig = config[option.value as keyof typeof config];
+        return (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 10,
+            fontWeight: 700,
+            fontFamily: 'var(--font-mono)',
+            color: optConfig.color,
+            letterSpacing: '1.5px',
+          }}>
+            <span style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: optConfig.color,
+              boxShadow: `0 0 8px ${optConfig.color}80`,
+            }} />
+            {optConfig.label}
+          </div>
+        );
+      }}
+    >
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '3px 10px',
+        borderRadius: 99,
+        background: c.bg,
+        border: `1px solid ${c.color}30`,
+        fontSize: 10,
+        fontWeight: 700,
+        fontFamily: 'var(--font-mono)',
+        color: c.color,
+        letterSpacing: '1.5px',
+      }}>
+        <span style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: c.color,
+          boxShadow: `0 0 8px ${c.color}80`,
+          animation: mode === 'live' ? 'pulse-soft 1.5s ease-in-out infinite' : 'none',
+        }} />
+        {c.label}
+      </div>
+    </Select>
   );
 }
 
@@ -94,7 +143,10 @@ export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [username, setUsername] = useState('');
+  const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
+  const [brokerDropdownOpen, setBrokerDropdownOpen] = useState(false);
   const { broker, setBroker } = useBrokerStore();
+  const connected = useWebSocketStatus();
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -135,6 +187,12 @@ export default function MainLayout() {
       icon: <TeamOutlined />,
       label: '用户管理',
       onClick: () => navigate('/users'),
+    },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: '系统设置',
+      onClick: () => navigate('/settings'),
     },
     {
       key: 'logout',
@@ -201,7 +259,11 @@ export default function MainLayout() {
             margin: '0 4px',
           }} />
 
-          <ModeIndicator />
+          <Tooltip title="切换交易模式：测试/模拟盘/实盘" open={!modeDropdownOpen && undefined}>
+            <div>
+              <ModeIndicator onOpenChange={setModeDropdownOpen} />
+            </div>
+          </Tooltip>
 
           <div style={{
             width: 1,
@@ -210,18 +272,21 @@ export default function MainLayout() {
             margin: '0 4px',
           }} />
 
-          <Select
-            value={broker}
-            onChange={setBroker}
-            style={{ width: 130 }}
-            size="small"
-            suffixIcon={<BankOutlined />}
-            options={[
-              { label: 'OKX', value: 'okx' },
-              { label: '国金证券', value: 'guojin' },
-              { label: 'moomoo', value: 'moomoo' },
-            ]}
-          />
+          <Tooltip title="选择券商平台" open={!brokerDropdownOpen && undefined}>
+            <Select
+              value={broker}
+              onChange={setBroker}
+              onDropdownVisibleChange={setBrokerDropdownOpen}
+              style={{ width: 130 }}
+              size="small"
+              suffixIcon={<BankOutlined />}
+              options={[
+                { label: 'OKX', value: 'okx' },
+                { label: '国金证券', value: 'guojin' },
+                { label: 'moomoo', value: 'moomoo' },
+              ]}
+            />
+          </Tooltip>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -247,16 +312,16 @@ export default function MainLayout() {
             gap: 6,
             fontSize: 11,
             fontFamily: 'var(--font-mono)',
-            color: 'var(--gain)',
+            color: connected ? 'var(--gain)' : 'var(--loss)',
           }}>
             <span style={{
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: 'var(--gain)',
-              boxShadow: '0 0 6px var(--gain)',
+              background: connected ? 'var(--gain)' : 'var(--loss)',
+              boxShadow: connected ? '0 0 6px var(--gain)' : '0 0 6px var(--loss)',
             }} />
-            CONNECTED
+            {connected ? 'CONNECTED' : 'DISCONNECTED'}
           </div>
           {import.meta.env.VITE_AUTH_ENABLED === 'true' && (
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">

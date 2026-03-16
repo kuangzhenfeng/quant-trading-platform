@@ -1,24 +1,44 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List
 from datetime import datetime
-from app.models.schemas import TickData, OrderSide, OrderType
+from app.models.schemas import TickData, OrderSide, OrderType, LogLevel
 
 
 class StrategyContext:
     """策略运行时上下文"""
-    def __init__(self, broker: str, trading_service, market_service):
+    def __init__(self, broker: str, trading_service, market_service, strategy_id: str = ""):
         self.broker = broker
         self._trading_service = trading_service
         self._market_service = market_service
+        self.strategy_id = strategy_id
         self.positions: Dict[str, float] = {}
         self.logs: List[str] = []
 
-    def log(self, msg: str):
+    def log(self, msg: str, level: LogLevel = LogLevel.INFO):
         """记录日志"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_msg = f"[{timestamp}] {msg}"
         self.logs.append(log_msg)
         print(log_msg)
+
+        # 持久化到数据库
+        if self.strategy_id:
+            import asyncio
+            asyncio.create_task(self._save_log(level, msg))
+
+    async def _save_log(self, level: LogLevel, message: str):
+        """保存日志到数据库"""
+        from app.core.database import AsyncSessionLocal
+        from app.models.db_models import DBStrategyLog
+
+        async with AsyncSessionLocal() as session:
+            log = DBStrategyLog(
+                strategy_id=self.strategy_id,
+                level=level.value,
+                message=message
+            )
+            session.add(log)
+            await session.commit()
 
     async def buy(self, symbol: str, quantity: float, price: float = None):
         """买入"""
@@ -27,7 +47,10 @@ class StrategyContext:
             self.broker, symbol, OrderSide.BUY, order_type, quantity, price
         )
         if success:
-            self.log(f"买入 {symbol} 数量 {quantity} 价格 {price or '市价'}")
+            price_str = f"{price}" if price else "市价"
+            self.log(f"买入成功 | 标的:{symbol} 数量:{quantity} 价格:{price_str} 订单ID:{order_id}", LogLevel.INFO)
+        else:
+            self.log(f"买入失败 | 标的:{symbol} 数量:{quantity}", LogLevel.ERROR)
         return success, order_id
 
     async def sell(self, symbol: str, quantity: float, price: float = None):
@@ -37,7 +60,10 @@ class StrategyContext:
             self.broker, symbol, OrderSide.SELL, order_type, quantity, price
         )
         if success:
-            self.log(f"卖出 {symbol} 数量 {quantity} 价格 {price or '市价'}")
+            price_str = f"{price}" if price else "市价"
+            self.log(f"卖出成功 | 标的:{symbol} 数量:{quantity} 价格:{price_str} 订单ID:{order_id}", LogLevel.INFO)
+        else:
+            self.log(f"卖出失败 | 标的:{symbol} 数量:{quantity}", LogLevel.ERROR)
         return success, order_id
 
     def get_price(self, symbol: str) -> float:

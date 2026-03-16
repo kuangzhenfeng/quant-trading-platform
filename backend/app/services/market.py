@@ -24,6 +24,20 @@ class MarketDataService:
         key = f"{client_id}:{broker}"
         self.subscriptions[key] = symbols
 
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
+        log_service.log(LogLevel.INFO, "market", f"订阅行情: {broker} {', '.join(symbols)}")
+
+    async def unsubscribe(self, client_id: str):
+        """取消订阅"""
+        keys_to_remove = [key for key in self.subscriptions if key.startswith(f"{client_id}:")]
+        for key in keys_to_remove:
+            del self.subscriptions[key]
+
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
+        log_service.log(LogLevel.INFO, "market", f"取消订阅: {client_id}")
+
     async def start_push(self):
         """启动行情推送"""
         self.running = True

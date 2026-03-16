@@ -1,28 +1,4 @@
-import axios from 'axios';
-import { authService } from './auth';
-
-const API_BASE = 'http://localhost:9000/api/trading';
-
-// 添加请求拦截器以附加 token
-axios.interceptors.request.use((config) => {
-  const token = authService.getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// 添加响应拦截器处理 401
-axios.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      authService.logout();
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+import request from './request';
 
 export interface PlaceOrderRequest {
   broker: string;
@@ -59,27 +35,27 @@ export interface AccountData {
 
 export const tradingApi = {
   placeOrder: async (req: PlaceOrderRequest) => {
-    const { data } = await axios.post(`${API_BASE}/order`, req);
+    const { data } = await request.post('/trading/order', req);
     return data;
   },
 
   cancelOrder: async (broker: string, orderId: string) => {
-    const { data } = await axios.delete(`${API_BASE}/order/${broker}/${orderId}`);
+    const { data } = await request.delete(`/trading/order/${broker}/${orderId}`);
     return data;
   },
 
   getOrder: async (broker: string, orderId: string) => {
-    const { data } = await axios.get<OrderData>(`${API_BASE}/order/${broker}/${orderId}`);
+    const { data } = await request.get<OrderData>(`/trading/order/${broker}/${orderId}`);
     return data;
   },
 
   getPositions: async (broker: string) => {
-    const { data } = await axios.get<{ positions: PositionData[] }>(`${API_BASE}/positions/${broker}`);
+    const { data } = await request.get<{ positions: PositionData[] }>(`/trading/positions/${broker}`);
     return data.positions;
   },
 
   getAccount: async (broker: string) => {
-    const { data } = await axios.get<AccountData>(`${API_BASE}/account/${broker}`);
+    const { data } = await request.get<AccountData>(`/trading/account/${broker}`);
     return data;
   },
 };

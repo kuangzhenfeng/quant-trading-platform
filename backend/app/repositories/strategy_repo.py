@@ -8,14 +8,29 @@ class StrategyRepository:
         self.session = session
 
     async def save_config(self, strategy_id: str, broker: str, symbol: str, params: dict) -> None:
-        db_config = DBStrategyConfig(
-            strategy_id=strategy_id,
-            broker=broker,
-            symbol=symbol,
-            params=params,
-            active=True
+        # 检查是否已存在
+        result = await self.session.execute(
+            select(DBStrategyConfig).where(DBStrategyConfig.strategy_id == strategy_id)
         )
-        self.session.add(db_config)
+        existing = result.scalars().first()
+
+        if existing:
+            # 更新现有记录
+            existing.broker = broker
+            existing.symbol = symbol
+            existing.params = params
+            existing.active = True
+        else:
+            # 创建新记录
+            db_config = DBStrategyConfig(
+                strategy_id=strategy_id,
+                broker=broker,
+                symbol=symbol,
+                params=params,
+                active=True
+            )
+            self.session.add(db_config)
+
         await self.session.commit()
 
     async def add_log(self, strategy_id: str, level: str, message: str) -> None:

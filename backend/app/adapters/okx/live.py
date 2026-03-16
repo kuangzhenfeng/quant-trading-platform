@@ -228,23 +228,37 @@ class OKXLiveAdapter(BrokerAdapter):
         if data["code"] != "0":
             raise ValueError(f"Failed to get positions: {data.get('msg')}")
 
+        # 从数据库加载持仓成本
+        from app.core.database import AsyncSessionLocal
+        from app.repositories.position_repo import PositionRepository
+        async with AsyncSessionLocal() as session:
+            repo = PositionRepository(session)
+            db_positions = await repo.get_all(broker="okx")
+
+        # 构建成本价映射
+        cost_map = {p.symbol: p.avg_price for p in db_positions}
+
         positions = []
         for account in data.get("data", []):
             for detail in account.get("details", []):
                 balance = float(detail.get("cashBal", 0))
-                if balance > 0 and detail["ccy"] != "USDT":  # 排除USDT，只显示持仓币种
-                    # 获取当前价格用于计算盈亏
+                if balance > 0 and detail["ccy"] != "USDT":
                     try:
                         symbol = f"{detail['ccy']}-USDT"
                         tick = await self.get_tick(symbol)
+
+                        # 使用数据库中的成本价，如果没有则使用当前价
+                        avg_price = cost_map.get(symbol, tick.last_price)
+                        unrealized_pnl = (tick.last_price - avg_price) * balance
+
                         positions.append(PositionData(
                             symbol=symbol,
                             quantity=balance,
-                            avg_price=tick.last_price,
-                            unrealized_pnl=0.0  # 现货无法计算盈亏，需要历史成本
+                            avg_price=avg_price,
+                            unrealized_pnl=unrealized_pnl
                         ))
                     except:
-                        pass  # 忽略无法获取价格的币种
+                        pass
         return positions
 
     async def get_klines(

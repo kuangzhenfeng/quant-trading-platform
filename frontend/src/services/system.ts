@@ -1,17 +1,17 @@
-import axios from 'axios';
-import { authService } from './auth';
+import request from './request';
 
-const API_BASE = 'http://localhost:9000';
-
-const getAuthHeader = () => {
-  const token = authService.getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
+interface ConfigItem {
+  key: string;
+  value: string;
+  category: string;
+  is_sensitive: boolean;
+}
 
 export const systemApi = {
   async restart(): Promise<void> {
-    await axios.post(`${API_BASE}/api/system/restart`, {}, {
-      headers: getAuthHeader(),
-    });
+    await request.post('/system/restart', {});
+  },
+  async updateConfig(configs: ConfigItem[]): Promise<void> {
+    await request.put('/system/config', { configs });
   },
 };

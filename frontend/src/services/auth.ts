@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:9000';
-const TOKEN_KEY = 'auth_token';
+const API_BASE = '/api';
+const TOKEN_KEY = 'token';
 
 /** 登录请求 */
 export interface LoginRequest {
@@ -25,7 +25,7 @@ export interface UserInfo {
 export const authService = {
   /** 用户登录 */
   async login(username: string, password: string): Promise<string> {
-    const response = await axios.post<TokenResponse>(`${API_BASE}/api/auth/login`, {
+    const response = await axios.post<TokenResponse>(`${API_BASE}/auth/login`, {
       username,
       password,
     });
@@ -47,7 +47,7 @@ export const authService = {
   /** 获取当前用户信息 */
   async getCurrentUser(): Promise<UserInfo> {
     const token = this.getToken();
-    const response = await axios.get<UserInfo>(`${API_BASE}/api/auth/me`, {
+    const response = await axios.get<UserInfo>(`${API_BASE}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;
@@ -55,7 +55,7 @@ export const authService = {
 
   /** 用户注册 */
   async register(username: string, password: string): Promise<UserInfo> {
-    const response = await axios.post<UserInfo>(`${API_BASE}/api/auth/register`, {
+    const response = await axios.post<UserInfo>(`${API_BASE}/auth/register`, {
       username,
       password,
     });
