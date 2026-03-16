@@ -74,7 +74,7 @@ async def get_order(broker: str, order_id: str, symbol: str | None = None):
 async def get_positions(broker: str):
     """获取持仓"""
     positions = await trading_service.get_positions(broker)
-    get_monitor_service().update_positions(broker, positions)
+    await get_monitor_service().update_positions(broker, positions)
     return {"positions": positions}
 
 
