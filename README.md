@@ -38,9 +38,8 @@
 ```bash
 cd backend
 uv venv
-source .venv/bin/activate
 uv pip install -r requirements.txt
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 **前端：**
@@ -55,7 +54,7 @@ npm run dev
 ### Docker 部署
 
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
 
 访问：http://localhost
