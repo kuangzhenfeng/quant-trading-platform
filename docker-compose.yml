@@ -3,10 +3,10 @@ services:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=quant
       - POSTGRES_DB=quant_trading
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -17,7 +17,7 @@ services:
     environment:
       - API_HOST=0.0.0.0
       - API_PORT=9000
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/quant_trading
+      - DATABASE_URL=postgresql+asyncpg://postgres:quant@db:5432/quant_trading
     depends_on:
       - db
 
