@@ -8,6 +8,8 @@ from app.models.db_models import DBSystemConfig
 from app.api.auth import get_current_user_dep
 from app.core.database import get_db
 from app.core.config import settings
+from app.services.log import log_service
+from app.models.schemas import LogLevel
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/system", tags=["system"])
@@ -20,6 +22,8 @@ async def reload_adapters():
     from app.services.strategy import strategy_engine
     from app.adapters.factory import AdapterFactory
     from app.core.config import TradingMode
+
+    log_service.log(LogLevel.INFO, "system", "开始重新加载所有 adapter...")
 
     # 1. 停止所有运行中的策略
     for strategy_id in list(strategy_engine.strategies.keys()):
@@ -51,7 +55,7 @@ async def reload_adapters():
                     market_service.register_adapter(account.broker, adapter)
                     loaded_brokers.add(account.broker)
                 except Exception as e:
-                    print(f"[WARNING] 创建MockAdapter失败 {account.broker}: {e}")
+                    log_service.log(LogLevel.WARNING, "system", f"创建MockAdapter失败 {account.broker}: {e}")
     else:
         # PAPER/LIVE模式：加载匹配的真实账户
         accounts = await account_service.list_accounts()
@@ -72,10 +76,12 @@ async def reload_adapters():
                     trading_service.register_adapter(account.broker, adapter)
                     market_service.register_adapter(account.broker, adapter)
                 except Exception as e:
-                    print(f"[WARNING] 重新加载账户失败 {account.name}: {e}")
+                    log_service.log(LogLevel.WARNING, "system", f"重新加载账户失败 {account.name}: {e}")
 
     # 4. 重新初始化策略引擎（重新创建策略上下文）
     await strategy_engine.restore_from_db()
+
+    log_service.log(LogLevel.INFO, "system", f"Adapter 重新加载完成，共加载 {len(trading_service.adapters)} 个券商")
 
 class InitStatusResponse(BaseModel):
     has_admin: bool
@@ -103,6 +109,7 @@ async def restart_service(
     _: User = Depends(get_current_user_dep)
 ):
     """重启后端服务"""
+    log_service.log(LogLevel.INFO, "system", "系统重启请求已提交")
     background_tasks.add_task(restart_server)
     return {"message": "服务正在重启..."}
 
@@ -199,9 +206,14 @@ async def update_config(
     await settings.load_from_db()
 
     # 如果切换了交易模式，重新加载 adapter
-    if any(item.key == "TRADING_MODE" for item in request.configs):
+    mode_switched = any(item.key == "TRADING_MODE" for item in request.configs)
+    if mode_switched:
+        new_mode = next(item.value for item in request.configs if item.key == "TRADING_MODE")
+        log_service.log(LogLevel.INFO, "system", f"交易模式切换为: {new_mode}")
         await reload_adapters()
 
+    updated_keys = [item.key for item in request.configs]
+    log_service.log(LogLevel.INFO, "system", f"系统配置更新: {updated_keys}")
     return {"message": "配置更新成功"}
 
 @router.get("/adapters")
@@ -220,6 +232,7 @@ async def reset_system(
 ):
     """重置系统（清空所有数据）"""
     from sqlalchemy import text
+    log_service.log(LogLevel.WARNING, "system", "系统重置开始...")
     await db.execute(text("DELETE FROM strategy_logs"))
     await db.execute(text("DELETE FROM strategy_configs"))
     await db.execute(text("DELETE FROM positions"))
@@ -231,7 +244,11 @@ async def reset_system(
     await db.commit()
 
     # 重新初始化默认配置
-    from app.core.init_data import init_system_config
+    from app.core.init_data import init_system_config, import_accounts_from_file
     await init_system_config(force=True)
 
+    # 自动导入 accounts_import.json 中的账户
+    await import_accounts_from_file()
+
+    log_service.log(LogLevel.INFO, "system", "系统重置完成，所有数据已清空")
     return {"message": "系统已重置"}

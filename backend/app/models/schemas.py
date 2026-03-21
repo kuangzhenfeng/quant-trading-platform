@@ -32,6 +32,8 @@ class OrderData(BaseModel):
     quantity: float
     price: float | None = None
     status: OrderStatus
+    created_at: str | None = None
+    broker: str | None = None
 
 class PositionData(BaseModel):
     symbol: str

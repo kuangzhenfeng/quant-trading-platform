@@ -18,13 +18,19 @@ class GuojinLiveAdapter(BrokerAdapter):
 
     async def connect(self) -> bool:
         """建立连接"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         await asyncio.sleep(0.1)
         self.connected = True
+        log_service.log(LogLevel.INFO, "adapter:guojin", "国金证券适配器连接成功")
         return True
 
     async def disconnect(self) -> bool:
         """断开连接"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         self.connected = False
+        log_service.log(LogLevel.INFO, "adapter:guojin", "国金证券适配器已断开连接")
         return True
 
     async def get_tick(self, symbol: str) -> TickData:

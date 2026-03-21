@@ -37,6 +37,54 @@ async def get_strategy_status():
             )
             log_counts = {row.strategy_id: row.cnt for row in result}
 
+    # 批量查询绩效快照
+    perf_map: dict[str, dict] = {}
+    if strategy_ids:
+        async with AsyncSessionLocal() as session:
+            from app.models.db_models import DBStrategyPerformance
+            result = await session.execute(
+                select(DBStrategyPerformance).where(
+                    DBStrategyPerformance.strategy_id.in_(strategy_ids)
+                )
+            )
+            for row in result.scalars().all():
+                perf_map[row.strategy_id] = {
+                    "total_return": row.total_return,
+                    "win_rate": row.win_rate,
+                }
+
+    # 批量查询各策略的持仓盈亏和成交订单数
+    unrealized_pnl_map: dict[str, float] = {}
+    total_trades_map: dict[str, int] = {}
+    if strategy_ids:
+        async with AsyncSessionLocal() as session:
+            from app.models.db_models import DBPosition
+            # 按 broker+symbol 批量查询持仓
+            pos_result = await session.execute(select(DBPosition))
+            pos_by_broker_symbol: dict[tuple[str, str], float] = {}
+            for row in pos_result.scalars().all():
+                pos_by_broker_symbol[(row.broker, row.symbol)] = getattr(row, 'unrealized_pnl', 0.0)
+
+            # 按 broker+symbol 批量查询成交订单数
+            from app.models.db_models import DBOrder
+            order_result = await session.execute(
+                select(DBOrder.broker, DBOrder.symbol, func.count().label("cnt"))
+                .where(DBOrder.status == "filled")
+                .group_by(DBOrder.broker, DBOrder.symbol)
+            )
+            trades_by_broker_symbol: dict[tuple[str, str], int] = {}
+            for row in order_result:
+                trades_by_broker_symbol[(row.broker, row.symbol)] = row.cnt
+
+            for sid in strategy_ids:
+                _, _, running = strategy_engine.strategies[sid]
+                broker = strategy_engine.strategies[sid][1].broker
+                # 从 strategy_id 提取 symbol（格式: {type}_{broker}_{symbol}）
+                parts = sid.rsplit("_", 2)
+                symbol = parts[2] if len(parts) >= 3 else ""
+                unrealized_pnl_map[sid] = pos_by_broker_symbol.get((broker, symbol), 0.0)
+                total_trades_map[sid] = trades_by_broker_symbol.get((broker, symbol), 0)
+
     return {
         "strategies": [
             {
@@ -44,6 +92,10 @@ async def get_strategy_status():
                 "running": running,
                 "broker": ctx.broker,
                 "log_count": log_counts.get(sid, 0),
+                "unrealized_pnl": unrealized_pnl_map.get(sid, 0.0),
+                "total_trades": total_trades_map.get(sid, 0),
+                "total_return": perf_map.get(sid, {}).get("total_return", None),
+                "win_rate": perf_map.get(sid, {}).get("win_rate", None),
             }
             for sid, (_, ctx, running) in strategy_engine.strategies.items()
         ]

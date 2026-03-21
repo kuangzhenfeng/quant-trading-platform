@@ -16,7 +16,9 @@ export interface OrderData {
   type: 'market' | 'limit';
   quantity: number;
   price?: number;
-  status: 'pending' | 'filled' | 'cancelled' | 'rejected';
+  status: 'pending' | 'partial' | 'filled' | 'cancelled' | 'rejected';
+  created_at?: string;
+  broker?: string;
 }
 
 export interface PositionData {
@@ -47,6 +49,11 @@ export const tradingApi = {
   getOrder: async (broker: string, orderId: string) => {
     const { data } = await request.get<OrderData>(`/trading/order/${broker}/${orderId}`);
     return data;
+  },
+
+  getOrders: async (broker: string) => {
+    const { data } = await request.get<{ orders: OrderData[] }>(`/trading/orders/${broker}`);
+    return data.orders;
   },
 
   getPositions: async (broker: string) => {

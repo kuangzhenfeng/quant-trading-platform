@@ -103,3 +103,72 @@ async def update_strategy(strategy_id: str, req: CreateStrategyRequest):
     if not success:
         raise HTTPException(404, "策略不存在")
     return {"status": "updated"}
+
+
+@router.get("/{strategy_id}/signals")
+async def get_strategy_signals(strategy_id: str):
+    """获取策略信号历史（最近100条，按时间倒序）"""
+    from app.repositories.signal_repo import SignalRepository
+    from app.core.database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as session:
+        repo = SignalRepository(session)
+        signals = await repo.get_by_strategy(strategy_id, limit=100)
+    return {
+        "signals": [
+            {
+                "id": s.id,
+                "strategy_id": s.strategy_id,
+                "timestamp": s.timestamp.isoformat() if s.timestamp else None,
+                "symbol": s.symbol,
+                "side": s.side,
+                "price": s.price,
+                "quantity": s.quantity,
+                "reason": s.reason,
+                "status": s.status,
+            }
+            for s in signals
+        ]
+    }
+
+
+@router.get("/{strategy_id}/performance")
+async def get_strategy_performance(strategy_id: str):
+    """获取策略绩效"""
+    from app.services.strategy_performance import performance_service
+
+    snapshot = await performance_service.get_snapshot(strategy_id)
+    if snapshot:
+        return snapshot
+    return await performance_service.calculate_metrics(strategy_id)
+
+
+@router.delete("/{strategy_id}")
+async def delete_strategy(strategy_id: str):
+    """删除策略"""
+    from sqlalchemy import delete, select
+    from app.models.db_models import DBStrategyConfig, DBStrategyPerformance, DBStrategySignal
+    from app.core.database import AsyncSessionLocal
+
+    # 检查策略是否存在（引擎中或数据库中）
+    in_engine = strategy_id in strategy_engine.strategies
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(DBStrategyConfig).where(DBStrategyConfig.strategy_id == strategy_id))
+        in_db = result.scalar_one_or_none() is not None
+
+    if not in_engine and not in_db:
+        raise HTTPException(404, "策略不存在")
+
+    # 如果策略在引擎中，先停止它
+    if in_engine:
+        await strategy_engine.stop(strategy_id)
+        # 从引擎中移除
+        strategy_engine.strategies.pop(strategy_id)
+
+    # 删除数据库记录
+    async with AsyncSessionLocal() as session:
+        await session.execute(delete(DBStrategySignal).where(DBStrategySignal.strategy_id == strategy_id))
+        await session.execute(delete(DBStrategyConfig).where(DBStrategyConfig.strategy_id == strategy_id))
+        await session.execute(delete(DBStrategyPerformance).where(DBStrategyPerformance.strategy_id == strategy_id))
+        await session.commit()
+    return {"message": "策略已删除"}

@@ -26,6 +26,38 @@ export interface Strategy {
   broker: string;
   running: boolean;
   log_count: number;
+  unrealized_pnl: number;
+  total_trades: number;
+  total_return: number | null;
+  win_rate: number | null;
+}
+
+export interface StrategySignal {
+  id: number;
+  strategy_id: string;
+  timestamp: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  price: number;
+  quantity: number;
+  reason: string;
+  status: 'pending' | 'filled' | 'failed';
+}
+
+export interface StrategyPerformance {
+  total_return: number;
+  max_drawdown: number;
+  win_rate: number;
+  profit_loss_ratio: number;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  avg_profit: number;
+  avg_loss: number;
+}
+
+export interface SignalsResponse {
+  signals: StrategySignal[];
 }
 
 export interface StrategiesResponse {

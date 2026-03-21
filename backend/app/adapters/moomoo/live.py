@@ -25,23 +25,30 @@ class MoomooLiveAdapter(BrokerAdapter):
 
     async def connect(self) -> bool:
         """建立连接"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         try:
             from futu import OpenQuoteContext, OpenSecTradeContext
             self.quote_ctx = OpenQuoteContext(host=self.host, port=self.port)
             self.trade_ctx = OpenSecTradeContext(host=self.host, port=self.port)
             self.connected = True
+            log_service.log(LogLevel.INFO, "adapter:moomoo", f"Moomoo 适配器连接成功 ({self.host}:{self.port})")
             return True
-        except Exception:
+        except Exception as e:
             self.connected = False
+            log_service.log(LogLevel.ERROR, "adapter:moomoo", f"Moomoo 适配器连接失败: {e}")
             return False
 
     async def disconnect(self) -> bool:
         """断开连接"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         if self.quote_ctx:
             self.quote_ctx.close()
         if self.trade_ctx:
             self.trade_ctx.close()
         self.connected = False
+        log_service.log(LogLevel.INFO, "adapter:moomoo", "Moomoo 适配器已断开连接")
         return True
 
     async def get_tick(self, symbol: str) -> TickData:
@@ -73,6 +80,8 @@ class MoomooLiveAdapter(BrokerAdapter):
         price: float | None = None
     ) -> str:
         """下单"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         from futu import RET_OK, TrdSide, OrderType as FutuOrderType
 
         futu_side = TrdSide.BUY if side == OrderSide.BUY else TrdSide.SELL
@@ -87,21 +96,34 @@ class MoomooLiveAdapter(BrokerAdapter):
         )
 
         if ret != RET_OK:
+            log_service.log(LogLevel.ERROR, "adapter:moomoo", f"Moomoo 下单失败: {symbol} {side.value} {quantity}, 错误: {data}")
             raise ValueError(f"Failed to place order: {data}")
 
-        return str(data['order_id'][0])
+        order_id = str(data['order_id'][0])
+        log_service.log(LogLevel.INFO, "adapter:moomoo", f"Moomoo 下单成功: {symbol} {side.value} {quantity}, 订单ID: {order_id}")
+        return order_id
 
     async def cancel_order(self, order_id: str) -> bool:
         """撤单"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         from futu import RET_OK
         ret, data = self.trade_ctx.modify_order(modify_order_op=2, order_id=int(order_id))
-        return ret == RET_OK
+        success = ret == RET_OK
+        if success:
+            log_service.log(LogLevel.INFO, "adapter:moomoo", f"Moomoo 撤单成功: {order_id}")
+        else:
+            log_service.log(LogLevel.ERROR, "adapter:moomoo", f"Moomoo 撤单失败: {order_id}, 错误: {data}")
+        return success
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> OrderData:
         """查询订单"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         from futu import RET_OK, TrdSide, OrderStatus as FutuOrderStatus
         ret, data = self.trade_ctx.order_list_query(order_id=int(order_id))
         if ret != RET_OK or data.empty:
+            log_service.log(LogLevel.ERROR, "adapter:moomoo", f"Moomoo 查询订单失败: {order_id}, 错误: {data}")
             raise ValueError(f"Failed to get order: {order_id}")
 
         row = data.iloc[0]
@@ -126,12 +148,16 @@ class MoomooLiveAdapter(BrokerAdapter):
 
     async def get_account(self) -> AccountData:
         """获取账户信息"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         from futu import RET_OK
         ret, data = self.trade_ctx.accinfo_query()
         if ret != RET_OK or data.empty:
+            log_service.log(LogLevel.ERROR, "adapter:moomoo", f"Moomoo 获取账户信息失败: {data}")
             raise ValueError("Failed to get account info")
 
         row = data.iloc[0]
+        log_service.log(LogLevel.INFO, "adapter:moomoo", f"Moomoo 获取账户信息成功: 总资产 ${float(row['total_assets']):.2f}")
         return AccountData(
             broker="moomoo",
             balance=float(row['total_assets']),
@@ -141,9 +167,12 @@ class MoomooLiveAdapter(BrokerAdapter):
 
     async def get_positions(self) -> List[PositionData]:
         """获取持仓列表"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         from futu import RET_OK
         ret, data = self.trade_ctx.position_list_query()
         if ret != RET_OK:
+            log_service.log(LogLevel.ERROR, "adapter:moomoo", f"Moomoo 获取持仓列表失败: {data}")
             raise ValueError("Failed to get positions")
 
         positions = []
@@ -155,6 +184,7 @@ class MoomooLiveAdapter(BrokerAdapter):
                     avg_price=float(row['cost_price']),
                     unrealized_pnl=float(row['pl_val'])
                 ))
+        log_service.log(LogLevel.INFO, "adapter:moomoo", f"Moomoo 获取持仓列表成功: {len(positions)} 个持仓")
         return positions
 
     async def get_klines(

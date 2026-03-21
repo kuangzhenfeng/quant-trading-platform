@@ -48,18 +48,28 @@ class OKXLiveAdapter(BrokerAdapter):
 
     async def connect(self) -> bool:
         """建立连接"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         try:
             response = await self.client.get("/api/v5/public/time")
             self.connected = response.status_code == 200
+            if self.connected:
+                log_service.log(LogLevel.INFO, "adapter:okx", "OKX 适配器连接成功")
+            else:
+                log_service.log(LogLevel.ERROR, "adapter:okx", f"OKX 适配器连接失败: HTTP {response.status_code}")
             return self.connected
-        except Exception:
+        except Exception as e:
             self.connected = False
+            log_service.log(LogLevel.ERROR, "adapter:okx", f"OKX 适配器连接异常: {e}")
             return False
 
     async def disconnect(self) -> bool:
         """断开连接"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         await self.client.aclose()
         self.connected = False
+        log_service.log(LogLevel.INFO, "adapter:okx", "OKX 适配器已断开连接")
         return True
 
     async def get_tick(self, symbol: str) -> TickData:
@@ -81,6 +91,8 @@ class OKXLiveAdapter(BrokerAdapter):
 
     async def subscribe_market_data(self, symbols: List[str], callback: Callable):
         """订阅实时行情推送（WebSocket）"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         try:
             import websockets
             async with websockets.connect("wss://ws.okx.com:8443/ws/v5/public") as ws:
@@ -89,6 +101,7 @@ class OKXLiveAdapter(BrokerAdapter):
                     "args": [{"channel": "tickers", "instId": symbol} for symbol in symbols]
                 }
                 await ws.send(json.dumps(subscribe_msg))
+                log_service.log(LogLevel.INFO, "adapter:okx", f"OKX 行情订阅成功: {symbols}")
 
                 while True:
                     msg = await ws.recv()
@@ -105,8 +118,8 @@ class OKXLiveAdapter(BrokerAdapter):
                                 timestamp=datetime.now()
                             )
                             await callback(tick)
-        except Exception:
-            pass
+        except Exception as e:
+            log_service.log(LogLevel.ERROR, "adapter:okx", f"OKX 行情订阅异常: {symbols}, 错误: {e}")
 
     async def place_order(
         self,
@@ -121,6 +134,8 @@ class OKXLiveAdapter(BrokerAdapter):
         注意：OKX市价单买入时，sz参数表示花费的金额（USDT）
               市价单卖出时，sz参数表示卖出的数量（BTC）
         """
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         path = "/api/v5/trade/order"
         side_str = "buy" if side == OrderSide.BUY else "sell"
         order_type_str = "limit" if order_type == OrderType.LIMIT else "market"
@@ -150,23 +165,34 @@ class OKXLiveAdapter(BrokerAdapter):
 
         if data["code"] != "0":
             error_msg = f"OKX API Error - Code: {data.get('code')}, Msg: {data.get('msg')}, Data: {data.get('data')}"
-            print(f"[OKX] {error_msg}")
+            log_service.log(LogLevel.ERROR, "adapter:okx", f"OKX 下单失败: {error_msg}")
             raise BrokerAPIError(error_msg)
 
-        return data["data"][0]["ordId"]
+        order_id = data["data"][0]["ordId"]
+        log_service.log(LogLevel.INFO, "adapter:okx", f"OKX 下单成功: {symbol} {side_str} {quantity} @ {price or '市价'}, 订单ID: {order_id}")
+        return order_id
 
     async def cancel_order(self, order_id: str) -> bool:
         """撤单"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         path = "/api/v5/trade/cancel-order"
         body_data = {"ordId": order_id}
         body = json.dumps(body_data)
         headers = self._get_headers("POST", path, body)
         response = await self.client.post(path, content=body, headers=headers)
         data = response.json()
-        return data["code"] == "0"
+        success = data["code"] == "0"
+        if success:
+            log_service.log(LogLevel.INFO, "adapter:okx", f"OKX 撤单成功: {order_id}")
+        else:
+            log_service.log(LogLevel.ERROR, "adapter:okx", f"OKX 撤单失败: {order_id}, 错误: {data.get('msg')}")
+        return success
 
     async def get_order(self, order_id: str, symbol: str | None = None) -> OrderData:
         """查询订单"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         path = f"/api/v5/trade/order?ordId={order_id}"
         if symbol:
             path += f"&instId={symbol}"
@@ -175,6 +201,7 @@ class OKXLiveAdapter(BrokerAdapter):
         data = response.json()
 
         if data["code"] != "0" or not data["data"]:
+            log_service.log(LogLevel.ERROR, "adapter:okx", f"OKX 查询订单失败: {order_id}, 错误: {data.get('msg')}")
             raise ValueError(f"Failed to get order: {data.get('msg')}")
 
         order = data["data"][0]
@@ -201,16 +228,20 @@ class OKXLiveAdapter(BrokerAdapter):
 
     async def get_account(self) -> AccountData:
         """获取账户信息"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         path = "/api/v5/account/balance"
         headers = self._get_headers("GET", path)
         response = await self.client.get(path, headers=headers)
         data = response.json()
 
         if data["code"] != "0" or not data["data"]:
+            log_service.log(LogLevel.ERROR, "adapter:okx", f"OKX 获取账户信息失败: {data.get('msg')}")
             raise ValueError(f"Failed to get account: {data.get('msg')}")
 
         account = data["data"][0]
         total_eq = float(account.get("totalEq", 0))
+        log_service.log(LogLevel.INFO, "adapter:okx", f"OKX 获取账户信息成功: 总资产 ${total_eq:.2f}")
         return AccountData(
             broker="okx",
             balance=total_eq,
@@ -220,12 +251,15 @@ class OKXLiveAdapter(BrokerAdapter):
 
     async def get_positions(self) -> List[PositionData]:
         """获取持仓列表（现货交易返回各币种余额）"""
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
         path = "/api/v5/account/balance"
         headers = self._get_headers("GET", path)
         response = await self.client.get(path, headers=headers)
         data = response.json()
 
         if data["code"] != "0":
+            log_service.log(LogLevel.ERROR, "adapter:okx", f"OKX 获取持仓列表失败: {data.get('msg')}")
             raise ValueError(f"Failed to get positions: {data.get('msg')}")
 
         # 从数据库加载持仓成本
@@ -257,8 +291,9 @@ class OKXLiveAdapter(BrokerAdapter):
                             avg_price=avg_price,
                             unrealized_pnl=unrealized_pnl
                         ))
-                    except:
-                        pass
+                    except Exception as e:
+                        log_service.log(LogLevel.WARNING, "adapter:okx", f"获取 {symbol} 行情失败: {e}")
+        log_service.log(LogLevel.INFO, "adapter:okx", f"OKX 获取持仓列表成功: {len(positions)} 个持仓")
         return positions
 
     async def get_klines(

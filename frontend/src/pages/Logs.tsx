@@ -9,7 +9,7 @@ export default function Logs() {
   const [level, setLevel] = useState<string | undefined>();
 
   const fetchLogs = useCallback(async () => {
-    const data = await logsApi.getLogs(level) as LogsResponse;
+    const data = await logsApi.getLogs({ level }) as LogsResponse;
     setLogs(data.logs);
   }, [level]);
 

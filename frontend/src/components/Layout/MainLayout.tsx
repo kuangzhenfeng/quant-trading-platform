@@ -351,6 +351,7 @@ export default function MainLayout() {
         {/* ─── Sidebar Rail ─── */}
         <nav style={{
           width: collapsed ? 64 : 200,
+          flexShrink: 0,
           background: 'var(--bg-base)',
           borderRight: '1px solid var(--border-subtle)',
           display: 'flex',

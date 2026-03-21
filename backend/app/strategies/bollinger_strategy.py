@@ -43,9 +43,17 @@ class BollingerStrategy(Strategy):
 
         # 触及下轨买入
         if data.last_price <= lower and self.position == 0:
-            await self.ctx.buy(self.symbol, self.quantity, data.last_price)
+            signal_id = await self.ctx.log_signal("buy", data.last_price, f"价格触及布林下轨{lower:.2f}")
+            if signal_id:
+                await self.ctx.buy(self.symbol, self.quantity, data.last_price, signal_id=signal_id)
+            else:
+                await self.ctx.buy(self.symbol, self.quantity, data.last_price)
             self.position = 1
         # 触及上轨卖出
         elif data.last_price >= upper and self.position == 1:
-            await self.ctx.sell(self.symbol, self.quantity, data.last_price)
+            signal_id = await self.ctx.log_signal("sell", data.last_price, f"价格触及布林上轨{upper:.2f}")
+            if signal_id:
+                await self.ctx.sell(self.symbol, self.quantity, data.last_price, signal_id=signal_id)
+            else:
+                await self.ctx.sell(self.symbol, self.quantity, data.last_price)
             self.position = 0

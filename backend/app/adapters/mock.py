@@ -15,10 +15,16 @@ class MockAdapter(BrokerAdapter):
 
     async def connect(self) -> bool:
         self.connected = True
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
+        log_service.log(LogLevel.INFO, "adapter:mock", "Mock 适配器连接成功")
         return True
 
     async def disconnect(self) -> bool:
         self.connected = False
+        from app.services.log import log_service
+        from app.models.schemas import LogLevel
+        log_service.log(LogLevel.INFO, "adapter:mock", "Mock 适配器已断开连接")
         return True
 
     async def get_tick(self, symbol: str) -> TickData:

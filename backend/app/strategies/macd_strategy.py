@@ -66,11 +66,19 @@ class MACDStrategy(Strategy):
         if self.prev_macd is not None and self.prev_signal is not None:
             # 金叉买入
             if self.prev_macd <= self.prev_signal and macd > signal and self.position == 0:
-                await self.ctx.buy(self.symbol, self.quantity, data.last_price)
+                signal_id = await self.ctx.log_signal("buy", data.last_price, "MACD上穿信号线")
+                if signal_id:
+                    await self.ctx.buy(self.symbol, self.quantity, data.last_price, signal_id=signal_id)
+                else:
+                    await self.ctx.buy(self.symbol, self.quantity, data.last_price)
                 self.position = 1
             # 死叉卖出
             elif self.prev_macd >= self.prev_signal and macd < signal and self.position == 1:
-                await self.ctx.sell(self.symbol, self.quantity, data.last_price)
+                signal_id = await self.ctx.log_signal("sell", data.last_price, "MACD下穿信号线")
+                if signal_id:
+                    await self.ctx.sell(self.symbol, self.quantity, data.last_price, signal_id=signal_id)
+                else:
+                    await self.ctx.sell(self.symbol, self.quantity, data.last_price)
                 self.position = 0
 
         self.prev_macd = macd

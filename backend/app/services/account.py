@@ -1,7 +1,8 @@
 from typing import List, Dict, Any
-from app.models.schemas import BrokerConfig
+from app.models.schemas import BrokerConfig, LogLevel
 from app.repositories.account_repo import AccountRepository
 from app.core.database import AsyncSessionLocal
+from app.services.log import log_service
 import uuid
 
 
@@ -28,13 +29,19 @@ class AccountService:
                         await repo.update(acc)
 
             await repo.create(config)
+            log_service.log(LogLevel.INFO, "account", f"添加账户成功: {config.broker} - {config.name} (ID: {config.id})")
             return True
 
     async def remove_account(self, account_id: str) -> bool:
         """删除账户"""
         async with AsyncSessionLocal() as session:
             repo = AccountRepository(session)
-            return await repo.delete(account_id)
+            success = await repo.delete(account_id)
+            if success:
+                log_service.log(LogLevel.INFO, "account", f"删除账户成功: {account_id}")
+            else:
+                log_service.log(LogLevel.WARNING, "account", f"删除账户失败: {account_id} 不存在")
+            return success
 
     async def get_account(self, account_id: str) -> BrokerConfig | None:
         """获取账户"""
@@ -54,6 +61,7 @@ class AccountService:
             repo = AccountRepository(session)
             account = await repo.get_by_id(account_id)
             if not account:
+                log_service.log(LogLevel.WARNING, "account", f"激活账户失败: {account_id} 不存在")
                 return False
 
             # 如果要激活账号，先停用同平台同模式的其他账号
@@ -73,6 +81,8 @@ class AccountService:
 
             account.active = active
             await repo.update(account)
+            status = "激活" if active else "停用"
+            log_service.log(LogLevel.INFO, "account", f"账户{status}: {account.broker} - {account.name} (ID: {account_id})")
             return True
 
     async def batch_import(self, accounts: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -95,7 +105,9 @@ class AccountService:
                     success_count += 1
                 except Exception as e:
                     failed.append({"name": acc_data.get('name', 'unknown'), "error": str(e)})
+                    log_service.log(LogLevel.ERROR, "account", f"批量导入账户失败: {acc_data.get('name', 'unknown')}, 错误: {e}")
 
+            log_service.log(LogLevel.INFO, "account", f"批量导入完成: 成功 {success_count}, 失败 {len(failed)}")
             return {"success": success_count, "failed": failed, "total": len(accounts)}
 
 

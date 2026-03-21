@@ -1,9 +1,10 @@
 from typing import Dict, Any
+import httpx
 from .live import OKXLiveAdapter
 
 
 class OKXPaperAdapter(OKXLiveAdapter):
-    """OKX 模拟盘适配器（使用官方 Sandbox API）"""
+    """OKX 模拟盘适配器（通过 header 标识使用官方 Sandbox API）"""
 
     def _get_headers(self, method: str, path: str, body: str = "") -> dict:
         """生成请求头，添加模拟盘标识"""

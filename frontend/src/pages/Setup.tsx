@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { Form, Input, Button, message, Steps, Select, Tabs } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { accountApi } from '../services/account';
+import { systemApi } from '../services/system';
 
 export default function Setup() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [token, setToken] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,14 +36,11 @@ export default function Setup() {
       });
       if (!res.ok) throw new Error();
 
-      const loginRes = await fetch('/api/auth/login', {
+      await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values)
       });
-      const loginData = await loginRes.json();
-      setToken(loginData.access_token);
-
       message.success('管理员账户创建成功');
       setStep(1);
     } catch (error) {
@@ -55,29 +53,73 @@ export default function Setup() {
   const handleConfigBroker = async (values: any) => {
     setLoading(true);
     try {
-      const configs = [
-        { key: 'TRADING_MODE', value: values.TRADING_MODE || 'mock', category: 'trading_mode', is_sensitive: false },
-        { key: 'OKX_PAPER_API_KEY', value: values.OKX_PAPER_API_KEY || '', category: 'okx', is_sensitive: true },
-        { key: 'OKX_PAPER_SECRET_KEY', value: values.OKX_PAPER_SECRET_KEY || '', category: 'okx', is_sensitive: true },
-        { key: 'OKX_PAPER_PASSPHRASE', value: values.OKX_PAPER_PASSPHRASE || '', category: 'okx', is_sensitive: true },
-        { key: 'MOOMOO_PAPER_HOST', value: values.MOOMOO_PAPER_HOST || '', category: 'moomoo', is_sensitive: false },
-        { key: 'MOOMOO_PAPER_PORT', value: values.MOOMOO_PAPER_PORT || '', category: 'moomoo', is_sensitive: false },
-        { key: 'GUOJIN_LIVE_ACCOUNT_ID', value: values.GUOJIN_LIVE_ACCOUNT_ID || '', category: 'guojin', is_sensitive: true },
-        { key: 'GUOJIN_LIVE_PASSWORD', value: values.GUOJIN_LIVE_PASSWORD || '', category: 'guojin', is_sensitive: true },
-      ];
+      const accounts: Array<{ broker: string; name: string; config: Record<string, unknown> }> = [];
 
-      await fetch('/api/system/config', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ configs })
-      });
+      // OKX 账户
+      if (values.OKX_PAPER_API_KEY) {
+        const isPaper = values.TRADING_MODE === 'paper';
+        accounts.push({
+          broker: 'okx',
+          name: isPaper ? 'OKX模拟盘' : 'OKX实盘',
+          config: {
+            api_key: values.OKX_PAPER_API_KEY,
+            secret_key: values.OKX_PAPER_SECRET_KEY,
+            passphrase: values.OKX_PAPER_PASSPHRASE,
+            is_paper: String(isPaper)
+          }
+        });
+      }
+
+      // Moomoo 账户
+      if (values.MOOMOO_PAPER_HOST) {
+        accounts.push({
+          broker: 'moomoo',
+          name: '富途证券',
+          config: {
+            host: values.MOOMOO_PAPER_HOST,
+            port: values.MOOMOO_PAPER_PORT || 11111,
+            unlock_password: ''
+          }
+        });
+      }
+
+      // 国金证券账户
+      if (values.GUOJIN_LIVE_ACCOUNT_ID) {
+        accounts.push({
+          broker: 'guojin',
+          name: '国金证券',
+          config: {
+            account_id: values.GUOJIN_LIVE_ACCOUNT_ID,
+            password: values.GUOJIN_LIVE_PASSWORD,
+            trading_password: ''
+          }
+        });
+      }
+
+      // 保存交易模式
+      await systemApi.updateConfig([{
+        key: 'TRADING_MODE',
+        value: values.TRADING_MODE || 'mock',
+        category: 'trading_mode',
+        is_sensitive: false
+      }]);
+
+      // 保存券商账户
+      if (accounts.length > 0) {
+        for (const account of accounts) {
+          await accountApi.add({
+            id: `${account.broker}_setup_${Date.now()}`,
+            ...account,
+            active: true
+          });
+        }
+      }
+
       message.success('配置保存成功');
       navigate('/login');
     } catch (error) {
       message.error('保存配置失败');
+      console.error('保存配置失败:', error);
     } finally {
       setLoading(false);
     }

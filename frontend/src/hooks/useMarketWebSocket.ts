@@ -19,6 +19,8 @@ export const useMarketWebSocket = (
   onTick: (tick: TickData) => void
 ) => {
   const ws = useRef<WebSocket | null>(null);
+  const onTickRef = useRef(onTick);
+  onTickRef.current = onTick;
 
   useEffect(() => {
     ws.current = new WebSocket(`ws://${window.location.host}/ws/market/${clientId}`);
@@ -26,14 +28,14 @@ export const useMarketWebSocket = (
     ws.current.onmessage = (event) => {
       const message: MarketMessage = JSON.parse(event.data);
       if (message.type === 'tick' && message.data) {
-        onTick(message.data);
+        onTickRef.current(message.data);
       }
     };
 
     return () => {
       ws.current?.close();
     };
-  }, [clientId, onTick]);
+  }, [clientId]);
 
   const subscribe = (broker: string, symbols: string[]) => {
     if (ws.current?.readyState === WebSocket.OPEN) {

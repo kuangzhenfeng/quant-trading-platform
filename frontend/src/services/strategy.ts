@@ -1,4 +1,5 @@
 import request from './request';
+import type { SignalsResponse, StrategyPerformance } from '../types/api';
 
 export interface CreateStrategyRequest {
   strategy_type: string;
@@ -39,6 +40,21 @@ export const strategyApi = {
 
   update: async (strategyId: string, req: CreateStrategyRequest) => {
     const { data } = await request.put(`/strategy/${strategyId}`, req);
+    return data;
+  },
+
+  getSignals: async (id: string) => {
+    const { data } = await request.get(`/strategy/${id}/signals`);
+    return data as SignalsResponse;
+  },
+
+  getPerformance: async (id: string) => {
+    const { data } = await request.get(`/strategy/${id}/performance`);
+    return data as StrategyPerformance;
+  },
+
+  deleteStrategy: async (id: string) => {
+    const { data } = await request.delete(`/strategy/${id}`);
     return data;
   },
 };

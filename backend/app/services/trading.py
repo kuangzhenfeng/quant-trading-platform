@@ -55,12 +55,46 @@ class TradingService:
     async def place_order(self, broker: str, symbol: str, side: OrderSide,
                          order_type: OrderType, quantity: float,
                          price: float | None = None) -> tuple[bool, str]:
-        """下单"""
+        """下单，根据当前交易模式选择合适的adapter，连接失败时降级到Mock"""
+        from app.core.config import TradingMode
+        from app.adapters.mock import MockAdapter
+
         adapter = self.adapters.get(broker)
+        use_mock = False
+
+        # 如果指定broker的adapter不存在，根据交易模式创建
+        if not adapter:
+            try:
+                if settings.trading_mode == TradingMode.MOCK:
+                    adapter = MockAdapter({})
+                    await adapter.connect()
+                    self.register_adapter(broker, adapter)
+                    print(f"[INFO] {broker} 使用 Mock 模式")
+                elif settings.trading_mode in (TradingMode.PAPER, TradingMode.LIVE):
+                    from app.adapters.factory import AdapterFactory
+                    mode = TradingMode.PAPER if settings.trading_mode == TradingMode.PAPER else TradingMode.LIVE
+                    adapter = AdapterFactory.create(broker, {}, mode)
+                    await adapter.connect()
+                    self.register_adapter(broker, adapter)
+                    mode_name = "Paper" if mode == TradingMode.PAPER else "Live"
+                    print(f"[INFO] {broker} 使用 {mode_name} 模式")
+            except Exception as e:
+                print(f"[WARNING] 创建 {broker} adapter失败: {e}")
+
+        # 如果adapter未连接，尝试连接
+        if adapter and not adapter.connected:
+            try:
+                await adapter.connect()
+            except Exception as e:
+                print(f"[WARNING] 连接 {broker} adapter失败: {e}")
+
+        # 如果adapter仍然不可用，降级到Mock
         if not adapter or not adapter.connected:
-            from app.models.schemas import LogLevel
-            get_log_service().log(LogLevel.ERROR, "trading", f"券商 {broker} 未连接")
-            return False, f"券商 {broker} 未连接"
+            use_mock = True
+            adapter = MockAdapter({})
+            await adapter.connect()
+            self.register_adapter(broker, adapter)
+            print(f"[INFO] {broker} 降级使用 Mock 模式")
 
         # 获取账户信息
         account = await adapter.get_account()

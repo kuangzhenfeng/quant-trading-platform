@@ -38,10 +38,18 @@ class MAStrategy(Strategy):
 
         # 金叉买入
         if short_ma > long_ma and self.position == 0:
-            await self.ctx.buy(self.symbol, self.quantity, data.last_price)
+            signal_id = await self.ctx.log_signal("buy", data.last_price, f"MA{self.short_period}上穿MA{self.long_period}金叉")
+            if signal_id:
+                await self.ctx.buy(self.symbol, self.quantity, data.last_price, signal_id=signal_id)
+            else:
+                await self.ctx.buy(self.symbol, self.quantity, data.last_price)
             self.position = 1
 
         # 死叉卖出
         elif short_ma < long_ma and self.position == 1:
-            await self.ctx.sell(self.symbol, self.quantity, data.last_price)
+            signal_id = await self.ctx.log_signal("sell", data.last_price, f"MA{self.short_period}下穿MA{self.long_period}死叉")
+            if signal_id:
+                await self.ctx.sell(self.symbol, self.quantity, data.last_price, signal_id=signal_id)
+            else:
+                await self.ctx.sell(self.symbol, self.quantity, data.last_price)
             self.position = 0

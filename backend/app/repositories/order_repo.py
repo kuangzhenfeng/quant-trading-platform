@@ -45,5 +45,7 @@ class OrderRepository:
             type=o.type,
             quantity=o.quantity,
             price=o.price,
-            status=o.status
+            status=o.status,
+            created_at=o.created_at.isoformat() if o.created_at else None,
+            broker=o.broker
         ) for o in db_orders]

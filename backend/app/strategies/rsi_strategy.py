@@ -58,9 +58,17 @@ class RSIStrategy(Strategy):
 
         # RSI < 超卖阈值买入
         if rsi < self.oversold and self.position == 0:
-            await self.ctx.buy(self.symbol, self.quantity, data.last_price)
+            signal_id = await self.ctx.log_signal("buy", data.last_price, f"RSI={rsi:.1f}低于超卖阈值{self.oversold}")
+            if signal_id:
+                await self.ctx.buy(self.symbol, self.quantity, data.last_price, signal_id=signal_id)
+            else:
+                await self.ctx.buy(self.symbol, self.quantity, data.last_price)
             self.position = 1
         # RSI > 超买阈值卖出
         elif rsi > self.overbought and self.position == 1:
-            await self.ctx.sell(self.symbol, self.quantity, data.last_price)
+            signal_id = await self.ctx.log_signal("sell", data.last_price, f"RSI={rsi:.1f}高于超买阈值{self.overbought}")
+            if signal_id:
+                await self.ctx.sell(self.symbol, self.quantity, data.last_price, signal_id=signal_id)
+            else:
+                await self.ctx.sell(self.symbol, self.quantity, data.last_price)
             self.position = 0

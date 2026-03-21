@@ -21,6 +21,13 @@ class MonitorService:
             repo = OrderRepository(session)
             await repo.update(order, broker)
 
+    async def get_orders(self, broker: str | None = None) -> List[OrderData]:
+        """获取订单历史"""
+        async with AsyncSessionLocal() as session:
+            repo = OrderRepository(session)
+            orders = await repo.get_all(broker)
+            return orders
+
     async def update_positions(self, broker: str, positions: List[PositionData]):
         """更新持仓"""
         async with AsyncSessionLocal() as session:

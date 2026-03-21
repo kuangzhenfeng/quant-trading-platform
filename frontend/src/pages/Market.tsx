@@ -1,9 +1,17 @@
-import { useState, useCallback, useEffect } from 'react';
-import { Button, Table, Segmented } from 'antd';
-import { ThunderboltOutlined, WifiOutlined, DisconnectOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { Button, Table, Segmented, Tabs } from 'antd';
+import { ThunderboltOutlined, WifiOutlined, DisconnectOutlined, ClockCircleOutlined, LineChartOutlined, BarChartOutlined } from '@ant-design/icons';
 import { Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ComposedChart, Bar, CartesianGrid } from 'recharts';
+import { createChart, type IChartApi, type ISeriesApi, type CandlestickData, type Time, CandlestickSeries } from 'lightweight-charts';
 import { useMarketWebSocket } from '../hooks/useMarketWebSocket';
 import { useBrokerStore } from '../stores/brokerStore';
+import { marketApi } from '../services/market';
+
+const BROKER_SYMBOLS: Record<string, string[]> = {
+  okx: ['BTC-USDT', 'ETH-USDT'],
+  guojin: ['600000.SH', '000001.SZ'],
+  moomoo: ['AAPL', 'TSLA'],
+};
 
 interface TickData {
   symbol: string;
@@ -26,8 +34,19 @@ export default function Market() {
   const { broker } = useBrokerStore();
   const [subscribed, setSubscribed] = useState(false);
 
+  // K线相关状态
+  const [klineInterval, setKlineInterval] = useState('1H');
+  const [klineSymbol, setKlineSymbol] = useState('BTC-USDT');
+  const [klineLoading, setKlineLoading] = useState(false);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+
   const handleTick = useCallback((tick: TickData) => {
-    setTicks(prev => ({ ...prev, [tick.symbol]: tick }));
+    setTicks(prev => {
+      const existing = prev[tick.symbol];
+      return existing?.last_price === tick.last_price ? prev : { ...prev, [tick.symbol]: tick };
+    });
     setOpenPrices(prev => {
       if (!prev[tick.symbol]) {
         return { ...prev, [tick.symbol]: tick.last_price };
@@ -50,37 +69,15 @@ export default function Market() {
 
   // 自动订阅逻辑
   useEffect(() => {
-    if (!subscribed) return;
-
-    const symbols = broker === 'okx'
-      ? ['BTC-USDT', 'ETH-USDT']
-      : broker === 'guojin'
-      ? ['600000.SH', '000001.SZ']
-      : ['AAPL', 'TSLA'];
-
-    // 延迟订阅，等待 WebSocket 连接建立
-    const timer = setTimeout(() => {
-      subscribe(broker, symbols);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [broker, subscribe, subscribed]);
-
-  // 初始订阅
-  useEffect(() => {
-    const symbols = broker === 'okx'
-      ? ['BTC-USDT', 'ETH-USDT']
-      : broker === 'guojin'
-      ? ['600000.SH', '000001.SZ']
-      : ['AAPL', 'TSLA'];
-
+    const symbols = BROKER_SYMBOLS[broker] ?? ['BTC-USDT', 'ETH-USDT'];
     const timer = setTimeout(() => {
       subscribe(broker, symbols);
       setSubscribed(true);
     }, 100);
-
-    return () => clearTimeout(timer);
-  }, []);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [broker, subscribe]);
 
   const handleUnsubscribe = () => {
     unsubscribe();
@@ -100,6 +97,77 @@ export default function Market() {
     subscribe(broker, symbols);
     setSubscribed(true);
   };
+
+  // K线图表初始化
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { color: 'rgba(15, 23, 42, 0.8)' },
+        textColor: '#94a3b8',
+      },
+      grid: {
+        vertLines: { color: 'rgba(51, 65, 85, 0.3)' },
+        horzLines: { color: 'rgba(51, 65, 85, 0.3)' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 400,
+    });
+
+    const candlestickSeries = chart.addSeries(CandlestickSeries, {
+      upColor: '#10b981',
+      downColor: '#ef4444',
+      borderUpColor: '#10b981',
+      borderDownColor: '#ef4444',
+      wickUpColor: '#10b981',
+      wickDownColor: '#ef4444',
+    });
+
+    chartRef.current = chart;
+    candlestickSeriesRef.current = candlestickSeries;
+
+    // 响应窗口大小变化
+    const handleResize = () => {
+      if (chartContainerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, []);
+
+  // 加载K线数据
+  const loadKlineData = useCallback(async () => {
+    setKlineLoading(true);
+    try {
+      const data = await marketApi.getKlines(klineSymbol, broker, klineInterval, 100);
+      if (candlestickSeriesRef.current && data.klines) {
+        const candleData: CandlestickData<Time>[] = data.klines.map(k => ({
+          time: (new Date(k.time).getTime() / 1000) as Time,
+          open: k.open,
+          high: k.high,
+          low: k.low,
+          close: k.close,
+        }));
+        candlestickSeriesRef.current.setData(candleData);
+        chartRef.current?.timeScale().fitContent();
+      }
+    } catch (error) {
+      console.error('加载K线数据失败:', error);
+    } finally {
+      setKlineLoading(false);
+    }
+  }, [klineSymbol, broker, klineInterval]);
+
+  useEffect(() => {
+    loadKlineData();
+  }, [loadKlineData]);
 
   const columns = [
     {
@@ -262,116 +330,202 @@ export default function Market() {
         )}
       </div>
 
-      {/* Charts */}
-      {Object.keys(ticks).length > 0 && (
-        <div className="animate-in stagger-1" style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))',
-          gap: 16,
-          marginBottom: 16,
-        }}>
-          {Object.entries(priceHistory)
-            .filter(([_, data]) => data.length > 0)
-            .map(([symbol, data]) => {
-              const currentTick = ticks[symbol];
-              const openPrice = openPrices[symbol];
-              const change = openPrice ? ((currentTick.last_price - openPrice) / openPrice) * 100 : 0;
-              const isUp = change > 0;
-              const isDown = change < 0;
-              const displayData = data.slice(-timeRange);
+      {/* Charts - Real-time & K-line */}
+      <div className="animate-in stagger-1" style={{ marginBottom: 16 }}>
+        <Tabs
+          defaultActiveKey="realtime"
+          items={[
+            {
+              key: 'realtime',
+              label: (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <LineChartOutlined />
+                  实时行情
+                </span>
+              ),
+              children: (
+                <>
+                  {Object.keys(ticks).length > 0 && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))',
+                      gap: 16,
+                    }}>
+                      {Object.entries(priceHistory)
+                        .filter(([_, data]) => data.length > 0)
+                        .map(([symbol, data]) => {
+                          const currentTick = ticks[symbol];
+                          const openPrice = openPrices[symbol];
+                          const change = openPrice ? ((currentTick.last_price - openPrice) / openPrice) * 100 : 0;
+                          const isUp = change > 0;
+                          const isDown = change < 0;
+                          const displayData = data.slice(-timeRange);
 
-              return (
-            <div key={symbol} style={{
-              background: 'rgba(15, 23, 42, 0.6)',
-              border: '1px solid rgba(51, 65, 85, 0.5)',
-              borderRadius: 8,
-              padding: '16px 18px',
-              backdropFilter: 'blur(8px)',
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                justifyContent: 'space-between',
-                marginBottom: 14,
-              }}>
+                          return (
+                            <div key={symbol} style={{
+                              background: 'rgba(15, 23, 42, 0.6)',
+                              border: '1px solid rgba(51, 65, 85, 0.5)',
+                              borderRadius: 8,
+                              padding: '16px 18px',
+                              backdropFilter: 'blur(8px)',
+                            }}>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'baseline',
+                                justifyContent: 'space-between',
+                                marginBottom: 14,
+                              }}>
+                                <div style={{
+                                  fontFamily: 'var(--font-mono)',
+                                  fontWeight: 700,
+                                  fontSize: 15,
+                                  color: '#e2e8f0',
+                                  letterSpacing: '0.02em',
+                                }}>
+                                  {symbol}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                                  <span style={{
+                                    fontFamily: 'var(--font-mono)',
+                                    fontWeight: 700,
+                                    fontSize: 18,
+                                    color: isUp ? '#10b981' : isDown ? '#ef4444' : '#94a3b8',
+                                  }}>
+                                    {currentTick.last_price.toFixed(2)}
+                                  </span>
+                                  <span style={{
+                                    fontFamily: 'var(--font-mono)',
+                                    fontWeight: 600,
+                                    fontSize: 12,
+                                    color: isUp ? '#10b981' : isDown ? '#ef4444' : '#64748b',
+                                  }}>
+                                    {isUp ? '+' : ''}{change.toFixed(2)}%
+                                  </span>
+                                </div>
+                              </div>
+                              <ResponsiveContainer width="100%" height={180}>
+                                <ComposedChart data={displayData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" />
+                                  <XAxis
+                                    dataKey="time"
+                                    stroke="#64748b"
+                                    style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
+                                    tick={{ fill: '#64748b' }}
+                                  />
+                                  <YAxis
+                                    yAxisId="price"
+                                    stroke="#64748b"
+                                    style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
+                                    domain={['dataMin - 0.5', 'dataMax + 0.5']}
+                                    tick={{ fill: '#64748b' }}
+                                  />
+                                  <YAxis
+                                    yAxisId="volume"
+                                    orientation="right"
+                                    stroke="#64748b"
+                                    style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
+                                    tick={{ fill: '#64748b' }}
+                                  />
+                                  <Tooltip
+                                    contentStyle={{
+                                      background: 'rgba(15, 23, 42, 0.95)',
+                                      border: '1px solid rgba(51, 65, 85, 0.8)',
+                                      borderRadius: 6,
+                                      fontSize: 11,
+                                      fontFamily: 'var(--font-mono)',
+                                      padding: '8px 10px',
+                                    }}
+                                    labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
+                                  />
+                                  <Bar yAxisId="volume" dataKey="volume" fill="rgba(100, 116, 139, 0.3)" />
+                                  <Line
+                                    yAxisId="price"
+                                    type="monotone"
+                                    dataKey="price"
+                                    stroke={isUp ? '#10b981' : isDown ? '#ef4444' : '#06b6d4'}
+                                    strokeWidth={2}
+                                    dot={false}
+                                    animationDuration={300}
+                                  />
+                                </ComposedChart>
+                              </ResponsiveContainer>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </>
+              ),
+            },
+            {
+              key: 'kline',
+              label: (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <BarChartOutlined />
+                  K线图
+                </span>
+              ),
+              children: (
                 <div style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontWeight: 700,
-                  fontSize: 15,
-                  color: '#e2e8f0',
-                  letterSpacing: '0.02em',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  border: '1px solid rgba(51, 65, 85, 0.5)',
+                  borderRadius: 8,
+                  padding: 16,
                 }}>
-                  {symbol}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 700,
-                    fontSize: 18,
-                    color: isUp ? '#10b981' : isDown ? '#ef4444' : '#94a3b8',
+                  {/* K线控制栏 */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 16,
+                    marginBottom: 16,
+                    paddingBottom: 16,
+                    borderBottom: '1px solid rgba(51, 65, 85, 0.3)',
                   }}>
-                    {currentTick.last_price.toFixed(2)}
-                  </span>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 600,
-                    fontSize: 12,
-                    color: isUp ? '#10b981' : isDown ? '#ef4444' : '#64748b',
-                  }}>
-                    {isUp ? '+' : ''}{change.toFixed(2)}%
-                  </span>
+                    <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>交易对:</span>
+                    <Tabs
+                      size="small"
+                      activeKey={klineSymbol}
+                      onChange={(key) => setKlineSymbol(key)}
+                      items={[
+                        { key: 'BTC-USDT', label: 'BTC-USDT' },
+                        { key: 'ETH-USDT', label: 'ETH-USDT' },
+                      ]}
+                      style={{ minWidth: 200 }}
+                    />
+
+                    <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginLeft: 16 }}>周期:</span>
+                    <Tabs
+                      size="small"
+                      activeKey={klineInterval}
+                      onChange={(key) => setKlineInterval(key)}
+                      items={[
+                        { key: '1m', label: '1分钟' },
+                        { key: '5m', label: '5分钟' },
+                        { key: '15m', label: '15分钟' },
+                        { key: '1H', label: '1小时' },
+                        { key: '1D', label: '1天' },
+                      ]}
+                      style={{ minWidth: 300 }}
+                    />
+
+                    <Button
+                      size="small"
+                      onClick={loadKlineData}
+                      loading={klineLoading}
+                      style={{ marginLeft: 'auto' }}
+                    >
+                      刷新
+                    </Button>
+                  </div>
+
+                  {/* K线图表容器 */}
+                  <div ref={chartContainerRef} style={{ width: '100%', minHeight: 400 }} />
                 </div>
-              </div>
-              <ResponsiveContainer width="100%" height={180}>
-                <ComposedChart data={displayData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" />
-                  <XAxis
-                    dataKey="time"
-                    stroke="#64748b"
-                    style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
-                    tick={{ fill: '#64748b' }}
-                  />
-                  <YAxis
-                    yAxisId="price"
-                    stroke="#64748b"
-                    style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
-                    domain={['dataMin - 0.5', 'dataMax + 0.5']}
-                    tick={{ fill: '#64748b' }}
-                  />
-                  <YAxis
-                    yAxisId="volume"
-                    orientation="right"
-                    stroke="#64748b"
-                    style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
-                    tick={{ fill: '#64748b' }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'rgba(15, 23, 42, 0.95)',
-                      border: '1px solid rgba(51, 65, 85, 0.8)',
-                      borderRadius: 6,
-                      fontSize: 11,
-                      fontFamily: 'var(--font-mono)',
-                      padding: '8px 10px',
-                    }}
-                    labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
-                  />
-                  <Bar yAxisId="volume" dataKey="volume" fill="rgba(100, 116, 139, 0.3)" />
-                  <Line
-                    yAxisId="price"
-                    type="monotone"
-                    dataKey="price"
-                    stroke={isUp ? '#10b981' : isDown ? '#ef4444' : '#06b6d4'}
-                    strokeWidth={2}
-                    dot={false}
-                    animationDuration={300}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          )})}
-        </div>
-      )}
+              ),
+            },
+          ]}
+        />
+      </div>
 
       {/* Data Table */}
       <div className="animate-in stagger-2" style={{

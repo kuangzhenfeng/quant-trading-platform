@@ -1,30 +1,10 @@
 from sqlalchemy import String, Float, Boolean, DateTime, JSON, Text, Enum as SQLEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from datetime import datetime
-import enum
+from app.models.schemas import OrderSide, OrderType, OrderStatus, LogLevel
 
 class Base(DeclarativeBase):
     pass
-
-class OrderSideEnum(str, enum.Enum):
-    BUY = "buy"
-    SELL = "sell"
-
-class OrderTypeEnum(str, enum.Enum):
-    MARKET = "market"
-    LIMIT = "limit"
-
-class OrderStatusEnum(str, enum.Enum):
-    PENDING = "pending"
-    PARTIAL = "partial"
-    FILLED = "filled"
-    CANCELLED = "cancelled"
-    REJECTED = "rejected"
-
-class LogLevelEnum(str, enum.Enum):
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
 
 class DBUser(Base):
     __tablename__ = "users"
@@ -45,11 +25,11 @@ class DBOrder(Base):
     order_id: Mapped[str] = mapped_column(String(100), primary_key=True)
     broker: Mapped[str] = mapped_column(String(50))
     symbol: Mapped[str] = mapped_column(String(50))
-    side: Mapped[str] = mapped_column(SQLEnum(OrderSideEnum))
-    type: Mapped[str] = mapped_column(SQLEnum(OrderTypeEnum))
+    side: Mapped[str] = mapped_column(SQLEnum(OrderSide))
+    type: Mapped[str] = mapped_column(SQLEnum(OrderType))
     quantity: Mapped[float] = mapped_column(Float)
     price: Mapped[float | None] = mapped_column(Float, nullable=True)
-    status: Mapped[str] = mapped_column(SQLEnum(OrderStatusEnum))
+    status: Mapped[str] = mapped_column(SQLEnum(OrderStatus))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -78,14 +58,45 @@ class DBStrategyLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     strategy_id: Mapped[str] = mapped_column(String(100))
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    level: Mapped[str] = mapped_column(SQLEnum(LogLevelEnum))
+    level: Mapped[str] = mapped_column(SQLEnum(LogLevel))
     message: Mapped[str] = mapped_column(Text)
+
+
+class DBStrategySignal(Base):
+    __tablename__ = "strategy_signals"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    strategy_id: Mapped[str] = mapped_column(String(100))
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    symbol: Mapped[str] = mapped_column(String(50))
+    side: Mapped[str] = mapped_column(String(10))  # 'buy' or 'sell'
+    price: Mapped[float] = mapped_column(Float)
+    quantity: Mapped[float] = mapped_column(Float)
+    reason: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending/filled/failed
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DBStrategyPerformance(Base):
+    __tablename__ = "strategy_performance"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    strategy_id: Mapped[str] = mapped_column(String(100), unique=True)
+    total_return: Mapped[float] = mapped_column(Float, default=0.0)
+    max_drawdown: Mapped[float] = mapped_column(Float, default=0.0)
+    win_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    profit_loss_ratio: Mapped[float] = mapped_column(Float, default=0.0)
+    total_trades: Mapped[int] = mapped_column(default=0)
+    winning_trades: Mapped[int] = mapped_column(default=0)
+    losing_trades: Mapped[int] = mapped_column(default=0)
+    avg_profit: Mapped[float] = mapped_column(Float, default=0.0)
+    avg_loss: Mapped[float] = mapped_column(Float, default=0.0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 class DBSystemLog(Base):
     __tablename__ = "system_logs"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    level: Mapped[str] = mapped_column(SQLEnum(LogLevelEnum))
+    level: Mapped[str] = mapped_column(SQLEnum(LogLevel))
     source: Mapped[str] = mapped_column(String(100))
     message: Mapped[str] = mapped_column(Text)
 
