@@ -22,9 +22,6 @@ services:
       - DATABASE_URL=postgresql+asyncpg://postgres:quant@db:5432/quant_trading
       - ACCOUNTS_IMPORT_FILE=/app/accounts_import.json
       - PYTHONUNBUFFERED=1
-      - HTTP_PROXY=${HTTP_PROXY}
-      - HTTPS_PROXY=${HTTPS_PROXY}
-      - NO_PROXY=${NO_PROXY}
     volumes:
       - ./backend/accounts_import.json:/app/accounts_import.json:ro
     depends_on:
