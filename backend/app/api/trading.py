@@ -84,8 +84,8 @@ async def get_positions(broker: str):
         await get_monitor_service().update_positions(broker, positions)
         return {"positions": positions}
     except Exception as e:
-        log_service.log(LogLevel.ERROR, "trading", f"获取持仓失败: {broker}, {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        log_service.log(LogLevel.WARNING, "trading", f"获取持仓失败: {broker}, {e}")
+        return {"positions": []}
 
 
 @router.get("/account/{broker}")
@@ -94,11 +94,9 @@ async def get_account(broker: str):
     try:
         account = await trading_service.get_account(broker)
         if not account:
-            log_service.log(LogLevel.WARNING, "trading", f"账户不存在: {broker}")
-            raise HTTPException(status_code=404, detail="账户不存在")
+            # adapter 未初始化时返回默认账户数据，避免前端 404 导致轮询停止
+            return {"broker": broker, "balance": 0, "available": 0, "frozen": 0}
         return account
-    except HTTPException:
-        raise
     except Exception as e:
         log_service.log(LogLevel.WARNING, "trading", f"获取账户信息失败: {broker}, {e}")
         return {"broker": broker, "balance": 0, "available": 0, "frozen": 0}

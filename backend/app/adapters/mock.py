@@ -28,11 +28,24 @@ class MockAdapter(BrokerAdapter):
         return True
 
     async def get_tick(self, symbol: str) -> TickData:
-        base_price = 100.0
+        """生成模拟行情数据"""
+        import random
+        # 根据 symbol 生成稳定的基准价格
+        base_prices = {
+            "BTC-USDT": 65000.0,
+            "ETH-USDT": 3500.0,
+            "BTC/USDT": 65000.0,
+            "ETH/USDT": 3500.0,
+        }
+        base = base_prices.get(symbol, 100.0)
+        # 使用 symbol 的 hash 作为种子，保证相同 symbol 生成相近的价格
+        seed = hash(symbol) % 1000
+        random.seed(seed)
+        price = base + random.uniform(-base * 0.02, base * 0.02)
         return TickData(
             broker="mock",
             symbol=symbol,
-            last_price=base_price + random.uniform(-5, 5),
+            last_price=price,
             volume=random.randint(1000, 10000),
             timestamp=datetime.now()
         )

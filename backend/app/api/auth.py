@@ -7,10 +7,14 @@ from app.core.security import create_access_token, verify_token
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-async def get_current_user_dep(request: Request) -> User:
-    """依赖函数：获取当前用户"""
+async def get_current_user_dep(request: Request) -> User | None:
+    """依赖函数：获取当前用户，认证禁用时返回 None"""
     if not hasattr(request.state, "user"):
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    if request.state.user == "anonymous":
+        # 认证禁用时返回 None，由路由函数处理
+        return None
 
     user = await get_user(request.state.user)
     if not user:
@@ -41,6 +45,9 @@ async def register(user_create: UserCreate):
 
 
 @router.get("/me", response_model=UserInfo)
-async def get_current_user_info(user: User = Depends(get_current_user_dep)):
+async def get_current_user_info(request: Request, user: User | None = Depends(get_current_user_dep)):
     """获取当前用户信息"""
+    # 认证禁用时返回默认用户
+    if request.state.user == "anonymous":
+        return UserInfo(username="anonymous", created_at=None)
     return UserInfo(username=user.username, created_at=user.created_at)

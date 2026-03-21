@@ -1,5 +1,5 @@
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import deque
 from app.models.schemas import LogEntry, LogLevel
 
@@ -43,7 +43,7 @@ class LogService:
     def log(self, level: LogLevel, source: str, message: str):
         """记录日志（同步写入内存 + 异步持久化到数据库）"""
         entry = LogEntry(
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             level=level,
             source=source,
             message=message

@@ -1,6 +1,6 @@
 from typing import Dict, List
 from app.adapters.base import BrokerAdapter
-from app.models.schemas import OrderSide, OrderType, OrderData, PositionData, AccountData
+from app.models.schemas import OrderSide, OrderType, OrderData, PositionData, AccountData, LogLevel
 from app.core.config import settings, TradingMode
 
 
@@ -55,46 +55,35 @@ class TradingService:
     async def place_order(self, broker: str, symbol: str, side: OrderSide,
                          order_type: OrderType, quantity: float,
                          price: float | None = None) -> tuple[bool, str]:
-        """下单，根据当前交易模式选择合适的adapter，连接失败时降级到Mock"""
+        """下单，根据当前交易模式选择合适的adapter"""
         from app.core.config import TradingMode
         from app.adapters.mock import MockAdapter
 
         adapter = self.adapters.get(broker)
-        use_mock = False
 
         # 如果指定broker的adapter不存在，根据交易模式创建
         if not adapter:
-            try:
-                if settings.trading_mode == TradingMode.MOCK:
-                    adapter = MockAdapter({})
-                    await adapter.connect()
-                    self.register_adapter(broker, adapter)
-                    print(f"[INFO] {broker} 使用 Mock 模式")
-                elif settings.trading_mode in (TradingMode.PAPER, TradingMode.LIVE):
-                    from app.adapters.factory import AdapterFactory
-                    mode = TradingMode.PAPER if settings.trading_mode == TradingMode.PAPER else TradingMode.LIVE
-                    adapter = AdapterFactory.create(broker, {}, mode)
-                    await adapter.connect()
-                    self.register_adapter(broker, adapter)
-                    mode_name = "Paper" if mode == TradingMode.PAPER else "Live"
-                    print(f"[INFO] {broker} 使用 {mode_name} 模式")
-            except Exception as e:
-                print(f"[WARNING] 创建 {broker} adapter失败: {e}")
+            if settings.trading_mode == TradingMode.MOCK:
+                adapter = MockAdapter({})
+                await adapter.connect()
+                self.register_adapter(broker, adapter)
+                print(f"[INFO] {broker} 使用 Mock 模式")
+            elif settings.trading_mode in (TradingMode.PAPER, TradingMode.LIVE):
+                from app.adapters.factory import AdapterFactory
+                mode = TradingMode.PAPER if settings.trading_mode == TradingMode.PAPER else TradingMode.LIVE
+                adapter = AdapterFactory.create(broker, {}, mode)
+                await adapter.connect()
+                self.register_adapter(broker, adapter)
+                mode_name = "Paper" if mode == TradingMode.PAPER else "Live"
+                print(f"[INFO] {broker} 使用 {mode_name} 模式")
 
         # 如果adapter未连接，尝试连接
         if adapter and not adapter.connected:
-            try:
-                await adapter.connect()
-            except Exception as e:
-                print(f"[WARNING] 连接 {broker} adapter失败: {e}")
-
-        # 如果adapter仍然不可用，降级到Mock
-        if not adapter or not adapter.connected:
-            use_mock = True
-            adapter = MockAdapter({})
             await adapter.connect()
-            self.register_adapter(broker, adapter)
-            print(f"[INFO] {broker} 降级使用 Mock 模式")
+
+        # adapter仍不可用，返回失败
+        if not adapter or not adapter.connected:
+            return False, f"连接失败，{broker} 不可用"
 
         # 获取账户信息
         account = await adapter.get_account()
@@ -105,7 +94,6 @@ class TradingService:
                 broker, symbol, side, quantity, price, account
             )
             if not passed:
-                from app.models.schemas import LogLevel
                 get_log_service().log(LogLevel.WARNING, "trading", f"风控拦截: {msg}")
                 return False, msg
 
@@ -120,7 +108,6 @@ class TradingService:
         positions = await adapter.get_positions()
         await get_monitor_service().update_positions(broker, positions)
 
-        from app.models.schemas import LogLevel
         get_log_service().log(LogLevel.INFO, "trading", f"下单成功: {broker} {symbol} {side.value} {quantity}")
 
         return True, order_id
@@ -139,19 +126,47 @@ class TradingService:
             return None
         return await adapter.get_order(order_id, symbol)
 
+    async def _ensure_adapter(self, broker: str) -> BrokerAdapter | None:
+        """确保 broker 对应的 adapter 已注册并连接，严格按交易模式区分"""
+        # adapter 已注册且已连接，直接返回
+        if broker in self.adapters and self.adapters[broker].connected:
+            return self.adapters[broker]
+
+        from app.core.config import TradingMode
+        from app.adapters.mock import MockAdapter
+
+        # 未注册或未连接时创建
+        if settings.trading_mode == TradingMode.MOCK:
+            adapter = MockAdapter({})
+        else:
+            from app.adapters.factory import AdapterFactory
+            mode = TradingMode.PAPER if settings.trading_mode == TradingMode.PAPER else TradingMode.LIVE
+            adapter = AdapterFactory.create(broker, {}, mode)
+
+        await adapter.connect()
+        self.adapters[broker] = adapter
+        print(f"[INFO] {broker} 使用 {settings.trading_mode.value} 模式")
+        return adapter if adapter.connected else None
+
     async def get_positions(self, broker: str) -> List[PositionData]:
-        """获取持仓"""
-        adapter = self.adapters.get(broker)
+        """获取持仓，自动初始化 adapter"""
+        adapter = await self._ensure_adapter(broker)
         if not adapter:
             return []
-        return await adapter.get_positions()
+        positions = await adapter.get_positions()
+        get_log_service().log(LogLevel.INFO, "trading",
+            f"获取持仓: {broker} {len(positions)} 个")
+        return positions
 
     async def get_account(self, broker: str) -> AccountData | None:
-        """获取账户信息"""
-        adapter = self.adapters.get(broker)
+        """获取账户信息，自动初始化 adapter"""
+        adapter = await self._ensure_adapter(broker)
         if not adapter:
             return None
-        return await adapter.get_account()
+        account = await adapter.get_account()
+        get_log_service().log(LogLevel.INFO, "trading",
+            f"获取账户: {broker} 余额={account.balance if account else 0}")
+        return account
 
 
 trading_service = TradingService()

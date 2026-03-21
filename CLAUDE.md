@@ -81,16 +81,18 @@ quant-trading-platform/
 
 ## 常用命令
 
+> **端口配置**：后端默认端口为 **9000**，可通过环境变量 `API_PORT` 或 `app/core/config.py` 中的 `api_port` 配置项修改。
+
 ```bash
 # 前端
 cd frontend && npm install        # 安装依赖
-cd frontend && npm run dev        # 启动开发服务器
+cd frontend && npm run dev        # 启动开发服务器（默认 5173）
 cd frontend && npm run build      # 构建生产版本
 cd frontend && npm run lint       # 代码检查
 
 # 后端
 cd backend && uv sync             # 安装依赖（使用 uv）
-cd backend && uv run uvicorn app.main:app --reload  # 启动开发服务器
+cd backend && uv run uvicorn app.main:app --reload  # 启动开发服务器（默认 9000）
 cd backend && uv run pytest -v    # 运行后端测试
 ```
 
@@ -99,3 +101,4 @@ cd backend && uv run pytest -v    # 运行后端测试
 - 注释用中文
 - 使用playwright MCP/skill验证功能，并修复问题
 - 当使用实盘时，涉及金钱的操作严格遵循总额度必须小于10美元，避免误操作导致损失。
+- 严格区分各交易模式（Mock/模拟盘/实盘），不做降级处理，

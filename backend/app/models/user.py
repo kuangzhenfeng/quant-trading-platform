@@ -31,11 +31,13 @@ class Token(BaseModel):
 class UserInfo(BaseModel):
     """用户信息响应"""
     username: str
-    created_at: datetime
+    created_at: datetime | None = None
 
     @field_serializer('created_at')
-    def serialize_created_at(self, dt: datetime) -> str:
+    def serialize_created_at(self, dt: datetime | None) -> str | None:
         """统一序列化为 UTC ISO 格式带 Z 后缀，前端可正确转为本地时间"""
+        if dt is None:
+            return None
         if dt.tzinfo is None:
             return dt.isoformat() + "Z"
         return dt.isoformat()
