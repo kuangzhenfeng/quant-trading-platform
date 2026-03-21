@@ -23,6 +23,7 @@ import { useBrokerStore } from '../../stores/brokerStore';
 import { authService } from '../../services/auth';
 import { systemApi } from '../../services/system';
 import { useWebSocketStatus } from '../../hooks/useWebSocketStatus';
+import TopProgressBar from '../TopProgressBar';
 
 const { Content } = Layout;
 
@@ -341,6 +342,9 @@ export default function MainLayout() {
             </Dropdown>
           )}
         </div>
+
+        {/* 顶部进度条：切换交易模式时显示 */}
+        <TopProgressBar />
       </header>
 
       <Layout style={{ background: 'var(--bg-void)', display: 'flex', flexDirection: 'row' }}>

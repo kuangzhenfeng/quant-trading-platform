@@ -3,20 +3,32 @@ import { App } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, WalletOutlined, DollarOutlined, LockOutlined } from '@ant-design/icons';
 import { tradingApi, type AccountData } from '../services/trading';
 import { useBrokerStore } from '../stores/brokerStore';
+import { useTradingModeStore } from '../stores/tradingModeStore';
+import axios from 'axios';
 
 export default function Dashboard() {
   const { message } = App.useApp();
   const { broker } = useBrokerStore();
+  const { mode } = useTradingModeStore();
   const [account, setAccount] = useState<AccountData | null>(null);
   const hasErrorRef = useRef(false);
+  // 账户未配置时停止轮询，避免大量无效 404 请求
+  const accountNotFoundRef = useRef(false);
 
   const loadAccount = useCallback(async () => {
     try {
       const acc = await tradingApi.getAccount(broker);
       setAccount(acc);
       hasErrorRef.current = false;
-    } catch {
-      // 仅在首次失败时提示，避免轮询产生重复错误消息
+      accountNotFoundRef.current = false;
+    } catch (err) {
+      // 404 表示券商账号尚未配置，静默处理，显示空数据，停止轮询
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        setAccount(null);
+        accountNotFoundRef.current = true;
+        return;
+      }
+      // 其他错误仅在首次失败时提示，避免轮询产生重复错误消息
       if (!hasErrorRef.current) {
         message.error('加载账户数据失败');
         hasErrorRef.current = true;
@@ -25,11 +37,18 @@ export default function Dashboard() {
   }, [broker, message]);
 
   useEffect(() => {
+    // broker 或 mode 切换时重置未找到标志，立即刷新
+    accountNotFoundRef.current = false;
     loadAccount();
-  }, [loadAccount]);
+  }, [loadAccount, mode]);
 
   useEffect(() => {
-    const interval = setInterval(loadAccount, 5000);
+    const interval = setInterval(() => {
+      // 账户未配置时不再轮询
+      if (!accountNotFoundRef.current) {
+        void loadAccount();
+      }
+    }, 5000);
     return () => clearInterval(interval);
   }, [loadAccount]);
 

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # 数据库配置
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/quant_trading"
 
+    # 账号批量导入文件路径（可选），启动时自动读取并导入，按 broker+name 去重
+    ACCOUNTS_IMPORT_FILE: str | None = None
+
     # 认证配置
     AUTH_ENABLED: bool = False
     AUTH_JWT_SECRET: str = "your-secret-key-change-in-production"

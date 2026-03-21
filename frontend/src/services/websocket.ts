@@ -8,7 +8,9 @@ class WebSocketClient {
 
   connect(clientId: string) {
     this.clientId = clientId;
-    const url = `ws://localhost:5173/ws/${clientId}`;
+    // 根据当前页面地址动态生成 WebSocket URL，兼容开发和生产环境
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = `${protocol}//${window.location.host}/ws/${clientId}`;
     this.ws = new WebSocket(url);
 
     this.ws.onmessage = (event) => {

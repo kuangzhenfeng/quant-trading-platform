@@ -21,7 +21,7 @@ export const useMarketWebSocket = (
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    ws.current = new WebSocket(`ws://localhost:9000/ws/market/${clientId}`);
+    ws.current = new WebSocket(`ws://${window.location.host}/ws/market/${clientId}`);
 
     ws.current.onmessage = (event) => {
       const message: MarketMessage = JSON.parse(event.data);

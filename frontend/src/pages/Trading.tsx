@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Select, Button, InputNumber, Radio, Table, App, Alert } from 'antd';
 import { ThunderboltOutlined, WalletOutlined, DollarOutlined, LockOutlined } from '@ant-design/icons';
 import { tradingApi, type PositionData, type AccountData } from '../services/trading';
 import type { ApiError } from '../types/api';
 import { useTradingModeStore } from '../stores/tradingModeStore';
 import { useBrokerStore } from '../stores/brokerStore';
+import axios from 'axios';
 
 export default function Trading() {
   const { message } = App.useApp();
@@ -18,6 +19,8 @@ export default function Trading() {
   const [loading, setLoading] = useState(false);
   const [positions, setPositions] = useState<PositionData[]>([]);
   const [account, setAccount] = useState<AccountData | null>(null);
+  // 账户未配置时停止轮询
+  const accountNotFoundRef = useRef(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -27,18 +30,32 @@ export default function Trading() {
       ]);
       setPositions(pos);
       setAccount(acc);
-    } catch {
+      accountNotFoundRef.current = false;
+    } catch (err) {
+      // 404 表示账户或持仓未配置，静默处理，停止轮询
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        setAccount(null);
+        setPositions([]);
+        accountNotFoundRef.current = true;
+        return;
+      }
       message.error('加载数据失败');
     }
-  }, [broker]);
+  }, [broker, message]);
 
   useEffect(() => {
+    // broker 或 mode 切换时重置标志并立即刷新数据
+    accountNotFoundRef.current = false;
     fetchMode();
-    loadData();
-  }, [broker, loadData, fetchMode]);
+    void loadData();
+  }, [broker, mode, loadData, fetchMode]);
 
   useEffect(() => {
-    const interval = setInterval(loadData, 5000);
+    const interval = setInterval(() => {
+      if (!accountNotFoundRef.current) {
+        void loadData();
+      }
+    }, 5000);
     return () => clearInterval(interval);
   }, [loadData]);
 

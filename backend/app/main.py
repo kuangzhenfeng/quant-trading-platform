@@ -36,34 +36,41 @@ async def lifespan(app: FastAPI):
     from app.services.account import account_service
     accounts = await account_service.list_accounts()
 
-    for account in accounts:
-        if account.active:
-            try:
-                # 根据账户配置的 is_paper 字段决定使用实盘还是模拟盘适配器
-                is_paper_value = account.config.get('is_paper')
-                is_paper = is_paper_value == 'true' or is_paper_value is True
-                mode = TradingMode.PAPER if is_paper else TradingMode.LIVE
+    if settings.trading_mode == TradingMode.MOCK:
+        # MOCK 模式：为所有支持的 broker 自动注册 MockAdapter，无需数据库账户配置
+        for broker_name in ["okx", "guojin", "moomoo"]:
+            adapter = AdapterFactory.create(broker_name, {}, TradingMode.MOCK)
+            await adapter.connect()
+            trading_service.register_adapter(broker_name, adapter)
+            market_service.register_adapter(broker_name, adapter)
+            print(f"[INIT] MOCK 模式已注册 adapter: {broker_name}")
+    else:
+        for account in accounts:
+            if account.active:
+                try:
+                    # 根据账户配置的 is_paper 字段决定使用实盘还是模拟盘适配器
+                    is_paper_value = account.config.get('is_paper')
+                    is_paper = is_paper_value == 'true' or is_paper_value is True
+                    mode = TradingMode.PAPER if is_paper else TradingMode.LIVE
 
-                # 只加载与当前交易模式匹配的账户
-                if settings.trading_mode == TradingMode.MOCK:
-                    continue  # MOCK 模式不加载真实账户
-                if settings.trading_mode == TradingMode.PAPER and not is_paper:
-                    continue  # PAPER 模式只加载模拟盘账户
-                if settings.trading_mode == TradingMode.LIVE and is_paper:
-                    continue  # LIVE 模式只加载实盘账户
+                    # 只加载与当前交易模式匹配的账户
+                    if settings.trading_mode == TradingMode.PAPER and not is_paper:
+                        continue  # PAPER 模式只加载模拟盘账户
+                    if settings.trading_mode == TradingMode.LIVE and is_paper:
+                        continue  # LIVE 模式只加载实盘账户
 
-                adapter = AdapterFactory.create(
-                    account.broker,
-                    account.config,
-                    mode
-                )
-                await adapter.connect()
-                trading_service.register_adapter(account.broker, adapter)
-                market_service.register_adapter(account.broker, adapter)
-                mode_name = "模拟盘" if is_paper else "实盘"
-                print(f"[INIT] 已加载账户: {account.name} ({account.broker}) - {mode_name}")
-            except Exception as e:
-                print(f"[WARNING] 加载账户失败 {account.name}: {e}")
+                    adapter = AdapterFactory.create(
+                        account.broker,
+                        account.config,
+                        mode
+                    )
+                    await adapter.connect()
+                    trading_service.register_adapter(account.broker, adapter)
+                    market_service.register_adapter(account.broker, adapter)
+                    mode_name = "模拟盘" if is_paper else "实盘"
+                    print(f"[INIT] 已加载账户: {account.name} ({account.broker}) - {mode_name}")
+                except Exception as e:
+                    print(f"[WARNING] 加载账户失败 {account.name}: {e}")
 
     # 初始化策略引擎
     strategy_engine.trading_service = trading_service
