@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Select, InputNumber, Button, Space, message, Table, Tag, Modal, List } from 'antd';
+import { Select, InputNumber, Button, Space, message, Table, Tag, Modal } from 'antd';
 import {
   RocketOutlined,
   PlayCircleOutlined,
@@ -555,28 +555,108 @@ export default function Strategy() {
 
       {/* Log Modal */}
       <Modal
-        title="策略日志"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FileTextOutlined style={{ color: 'var(--cyan-400)' }} />
+            <span>策略日志</span>
+            <span style={{
+              fontSize: 11,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--text-muted)',
+              fontWeight: 400,
+              marginLeft: 4,
+            }}>
+              {logs.length} 条
+            </span>
+          </div>
+        }
         open={logModalVisible}
         onCancel={() => setLogModalVisible(false)}
         footer={null}
-        width={800}
+        width={780}
       >
-        <List
-          dataSource={logs}
-          renderItem={(log) => (
-            <List.Item>
-              <div style={{ width: '100%' }}>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                  <Tag color={log.level === 'error' ? 'red' : log.level === 'warning' ? 'orange' : 'blue'}>
-                    {log.level.toUpperCase()}
-                  </Tag>
-                  <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{log.timestamp}</span>
+        {logs.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '40px 0',
+            color: 'var(--text-muted)',
+            fontSize: 13,
+            fontFamily: 'var(--font-sans)',
+          }}>
+            暂无日志
+          </div>
+        ) : (
+          <div style={{
+            background: '#0d0f14',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '12px 0',
+            maxHeight: 520,
+            overflowY: 'auto',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 12,
+            lineHeight: '22px',
+          }}>
+            {logs.map((log, i) => {
+              // 格式化时间：UTC ISO → 本地时间 MM-DD HH:mm:ss
+              const ts = log.timestamp;
+              let timeStr = ts;
+              try {
+                const d = new Date(ts);  // 带 Z 后缀，自动按 UTC 解析再转本地
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                const ss = String(d.getSeconds()).padStart(2, '0');
+                timeStr = `${mm}-${dd} ${hh}:${min}:${ss}`;
+              } catch { /* 解析失败保留原值 */ }
+
+              const levelColor: Record<string, string> = {
+                error:   '#f87171',
+                warning: '#fbbf24',
+                warn:    '#fbbf24',
+                info:    '#22d3ee',
+                debug:   '#94a3b8',
+              };
+              const color = levelColor[log.level?.toLowerCase()] ?? '#94a3b8';
+              const levelTag = (log.level ?? 'info').toUpperCase().padEnd(5);
+
+              return (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    gap: 0,
+                    padding: '1px 16px',
+                    borderLeft: `2px solid transparent`,
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(148,163,184,0.05)';
+                    e.currentTarget.style.borderLeftColor = color;
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.borderLeftColor = 'transparent';
+                  }}
+                >
+                  {/* 时间 */}
+                  <span style={{ color: '#4b5563', minWidth: 110, flexShrink: 0 }}>
+                    {timeStr}
+                  </span>
+                  {/* level */}
+                  <span style={{ color, minWidth: 52, flexShrink: 0, fontWeight: 700 }}>
+                    {levelTag}
+                  </span>
+                  {/* 消息 */}
+                  <span style={{ color: '#e2e8f0', wordBreak: 'break-all' }}>
+                    {log.message}
+                  </span>
                 </div>
-                <div>{log.message}</div>
-              </div>
-            </List.Item>
-          )}
-        />
+              );
+            })}
+          </div>
+        )}
       </Modal>
     </div>
   );

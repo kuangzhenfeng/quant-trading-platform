@@ -1,6 +1,6 @@
 from enum import Enum
-from pydantic import BaseModel
-from datetime import datetime
+from pydantic import BaseModel, field_serializer
+from datetime import datetime, timezone
 
 class OrderSide(str, Enum):
     BUY = "buy"
@@ -62,6 +62,13 @@ class LogEntry(BaseModel):
     level: LogLevel
     source: str
     message: str
+
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, dt: datetime) -> str:
+        """统一序列化为 UTC ISO 格式带 Z 后缀，前端可正确转为本地时间"""
+        if dt.tzinfo is None:
+            return dt.isoformat() + "Z"
+        return dt.isoformat()
 
 class KlineInterval(str, Enum):
     """K线周期"""

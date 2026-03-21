@@ -72,7 +72,7 @@ async def get_logs(strategy_id: str, limit: int = 100):
         return {
             "logs": [
                 {
-                    "timestamp": log.timestamp.isoformat(),
+                    "timestamp": log.timestamp.isoformat() + "Z",  # 标记为 UTC，前端可正确转换本地时间
                     "level": log.level,
                     "message": log.message
                 }

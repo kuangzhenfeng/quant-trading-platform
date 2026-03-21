@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException
+from sqlalchemy import select, func
 from app.services.monitor import monitor_service
 from app.services.strategy import strategy_engine
 from app.core.config import settings, TradingMode
+from app.models.db_models import DBStrategyLog
+from app.core.database import AsyncSessionLocal
 
 router = APIRouter(prefix="/api/monitor", tags=["monitor"])
 
@@ -20,14 +23,27 @@ async def get_stats():
 
 @router.get("/strategies")
 async def get_strategy_status():
-    """获取策略状态"""
+    """获取策略状态（日志数从数据库实时统计）"""
+    strategy_ids = list(strategy_engine.strategies.keys())
+
+    # 从数据库批量查询各策略的日志条数
+    log_counts: dict[str, int] = {}
+    if strategy_ids:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(DBStrategyLog.strategy_id, func.count().label("cnt"))
+                .where(DBStrategyLog.strategy_id.in_(strategy_ids))
+                .group_by(DBStrategyLog.strategy_id)
+            )
+            log_counts = {row.strategy_id: row.cnt for row in result}
+
     return {
         "strategies": [
             {
                 "id": sid,
                 "running": running,
                 "broker": ctx.broker,
-                "log_count": len(ctx.logs)
+                "log_count": log_counts.get(sid, 0),
             }
             for sid, (_, ctx, running) in strategy_engine.strategies.items()
         ]

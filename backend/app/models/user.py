@@ -1,6 +1,6 @@
 """用户数据模型"""
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 
 
 class User(BaseModel):
@@ -32,3 +32,10 @@ class UserInfo(BaseModel):
     """用户信息响应"""
     username: str
     created_at: datetime
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, dt: datetime) -> str:
+        """统一序列化为 UTC ISO 格式带 Z 后缀，前端可正确转为本地时间"""
+        if dt.tzinfo is None:
+            return dt.isoformat() + "Z"
+        return dt.isoformat()
