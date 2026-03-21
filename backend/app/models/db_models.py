@@ -58,7 +58,7 @@ class DBStrategyLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     strategy_id: Mapped[str] = mapped_column(String(100))
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    level: Mapped[str] = mapped_column(SQLEnum(LogLevel))
+    level: Mapped[str] = mapped_column(SQLEnum(LogLevel, name='loglevelenum', create_type=False))
     message: Mapped[str] = mapped_column(Text)
 
 
@@ -96,7 +96,7 @@ class DBSystemLog(Base):
     __tablename__ = "system_logs"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    level: Mapped[str] = mapped_column(SQLEnum(LogLevel))
+    level: Mapped[str] = mapped_column(SQLEnum(LogLevel, name='loglevelenum', create_type=False))
     source: Mapped[str] = mapped_column(String(100))
     message: Mapped[str] = mapped_column(Text)
 

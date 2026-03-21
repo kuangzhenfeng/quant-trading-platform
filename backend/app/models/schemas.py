@@ -55,9 +55,9 @@ class BrokerConfig(BaseModel):
     active: bool = True
 
 class LogLevel(str, Enum):
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
 
 class LogEntry(BaseModel):
     timestamp: datetime
