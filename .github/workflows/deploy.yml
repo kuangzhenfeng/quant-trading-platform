@@ -2,7 +2,7 @@ name: Deploy to Production
 
 on:
   push:
-    branches: [release]
+    branches: [main]
   release:
     types: [published]
 
@@ -78,7 +78,7 @@ jobs:
             cd "$PROJECT_DIR"
 
             echo "==> 拉取最新代码"
-            git pull origin release
+            git pull origin main
 
             echo "==> 登录 Container Registry"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
