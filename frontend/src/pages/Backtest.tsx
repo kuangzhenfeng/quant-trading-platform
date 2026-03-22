@@ -97,9 +97,10 @@ export default function Backtest() {
 
         <Form form={form} onFinish={handleRun} layout="vertical">
           <div
+            className="page-grid-2"
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(2, 1fr)',
               gap: '0 24px',
             }}
           >
@@ -292,6 +293,7 @@ export default function Backtest() {
           </div>
 
           <div
+            className="page-grid-4"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(4, 1fr)',

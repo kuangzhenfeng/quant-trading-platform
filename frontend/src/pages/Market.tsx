@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Button, Table, Segmented, Tabs } from 'antd';
+import { Button, Table, Segmented, Tabs, Select } from 'antd';
 import { ThunderboltOutlined, WifiOutlined, DisconnectOutlined, ClockCircleOutlined, LineChartOutlined, BarChartOutlined } from '@ant-design/icons';
 import { Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ComposedChart, Bar, CartesianGrid } from 'recharts';
 import { createChart, type IChartApi, type ISeriesApi, type CandlestickData, type Time, CandlestickSeries } from 'lightweight-charts';
@@ -265,7 +265,7 @@ export default function Market() {
       </div>
 
       {/* Control Bar */}
-      <div className="animate-in" style={{
+      <div className="control-bar animate-in" style={{
         display: 'flex',
         alignItems: 'center',
         gap: 16,
@@ -355,9 +355,9 @@ export default function Market() {
               children: (
                 <>
                   {Object.keys(ticks).length > 0 && (
-                    <div style={{
+                    <div className="page-grid" style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
                       gap: 16,
                     }}>
                       {Object.entries(priceHistory)
@@ -482,39 +482,69 @@ export default function Market() {
                   padding: 16,
                 }}>
                   {/* K线控制栏 */}
-                  <div style={{
+                  <div className="control-bar" style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 16,
                     marginBottom: 16,
                     paddingBottom: 16,
                     borderBottom: '1px solid rgba(51, 65, 85, 0.3)',
+                    flexWrap: 'wrap',
                   }}>
                     <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>交易对:</span>
-                    <Tabs
-                      size="small"
-                      activeKey={klineSymbol}
-                      onChange={(key) => setKlineSymbol(key)}
-                      items={[
-                        { key: 'BTC-USDT', label: 'BTC-USDT' },
-                        { key: 'ETH-USDT', label: 'ETH-USDT' },
+                    <div className="hide-mobile">
+                      <Tabs
+                        size="small"
+                        activeKey={klineSymbol}
+                        onChange={(key) => setKlineSymbol(key)}
+                        items={[
+                          { key: 'BTC-USDT', label: 'BTC-USDT' },
+                          { key: 'ETH-USDT', label: 'ETH-USDT' },
+                        ]}
+                        style={{ minWidth: 200 }}
+                      />
+                    </div>
+                    {/* Mobile: use Select instead */}
+                    <Select
+                      value={klineSymbol}
+                      onChange={setKlineSymbol}
+                      className="show-mobile-only"
+                      style={{ width: 120 }}
+                      options={[
+                        { label: 'BTC-USDT', value: 'BTC-USDT' },
+                        { label: 'ETH-USDT', value: 'ETH-USDT' },
                       ]}
-                      style={{ minWidth: 200 }}
                     />
 
-                    <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginLeft: 16 }}>周期:</span>
-                    <Tabs
-                      size="small"
-                      activeKey={klineInterval}
-                      onChange={(key) => setKlineInterval(key)}
-                      items={[
-                        { key: '1m', label: '1分钟' },
-                        { key: '5m', label: '5分钟' },
-                        { key: '15m', label: '15分钟' },
-                        { key: '1H', label: '1小时' },
-                        { key: '1D', label: '1天' },
+                    <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginLeft: 8 }}>周期:</span>
+                    <div className="hide-mobile">
+                      <Tabs
+                        size="small"
+                        activeKey={klineInterval}
+                        onChange={(key) => setKlineInterval(key)}
+                        items={[
+                          { key: '1m', label: '1分钟' },
+                          { key: '5m', label: '5分钟' },
+                          { key: '15m', label: '15分钟' },
+                          { key: '1H', label: '1小时' },
+                          { key: '1D', label: '1天' },
+                        ]}
+                        style={{ minWidth: 300 }}
+                      />
+                    </div>
+                    {/* Mobile: use Select instead */}
+                    <Select
+                      value={klineInterval}
+                      onChange={setKlineInterval}
+                      className="show-mobile-only"
+                      style={{ width: 100 }}
+                      options={[
+                        { label: '1分钟', value: '1m' },
+                        { label: '5分钟', value: '5m' },
+                        { label: '15分钟', value: '15m' },
+                        { label: '1小时', value: '1H' },
+                        { label: '1天', value: '1D' },
                       ]}
-                      style={{ minWidth: 300 }}
                     />
 
                     <Button

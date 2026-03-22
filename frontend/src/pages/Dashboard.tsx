@@ -78,14 +78,14 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div style={{
+      <div className="stats-grid-3 animate-in stagger-1" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
         gap: 16,
         marginBottom: 24,
       }}>
         {/* Balance */}
-        <div className="apex-stat animate-in stagger-1" style={{ gridColumn: 'span 1' }}>
+        <div className="apex-stat" style={{ gridColumn: 'span 1' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <div style={{
               width: 32,
@@ -238,7 +238,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Stats Row */}
-      <div className="animate-in stagger-5" style={{
+      <div className="quick-stats-grid animate-in stagger-5" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
         gap: 16,

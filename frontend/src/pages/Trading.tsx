@@ -282,7 +282,7 @@ export default function Trading() {
       />
 
       {/* Account Stats */}
-      <div className="animate-in" style={{
+      <div className="stats-grid-3 animate-in" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
         gap: 12,

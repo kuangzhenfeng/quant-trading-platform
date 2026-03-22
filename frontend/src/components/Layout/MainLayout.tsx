@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Layout, Tooltip, Select, Button, message, Dropdown } from 'antd';
+import { Layout, Tooltip, Select, Button, message, Dropdown, Drawer } from 'antd';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -17,6 +17,8 @@ import {
   ReloadOutlined,
   UserOutlined,
   SettingOutlined,
+  MoreOutlined,
+  HomeOutlined,
 } from '@ant-design/icons';
 import { useTradingModeStore } from '../../stores/tradingModeStore';
 import { useBrokerStore } from '../../stores/brokerStore';
@@ -27,7 +29,17 @@ import TopProgressBar from '../TopProgressBar';
 
 const { Content } = Layout;
 
-const navItems = [
+// 核心页面 — 底部 Tab Bar 显示
+const coreNavItems = [
+  { key: '/', icon: <HomeOutlined />, label: '首页' },
+  { key: '/market', icon: <LineChartOutlined />, label: '行情' },
+  { key: '/trading', icon: <SwapOutlined />, label: '交易' },
+  { key: '/strategy', icon: <RocketOutlined />, label: '策略' },
+  { key: '/monitor', icon: <MonitorOutlined />, label: '监控' },
+];
+
+// 完整导航项 — 侧边栏显示
+const allNavItems = [
   { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/market', icon: <LineChartOutlined />, label: '行情' },
   { key: '/trading', icon: <SwapOutlined />, label: '交易' },
@@ -40,19 +52,6 @@ const navItems = [
   { key: '/logs', icon: <FileTextOutlined />, label: '日志' },
 ];
 
-function LiveClock() {
-  const [time, setTime] = useState(new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  return (
-    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>
-      {time.toLocaleTimeString('zh-CN', { hour12: false })}
-    </span>
-  );
-}
-
 function ModeIndicator({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
   const { mode, fetchMode, setMode } = useTradingModeStore();
   useEffect(() => { fetchMode(); }, [fetchMode]);
@@ -62,7 +61,6 @@ function ModeIndicator({ onOpenChange }: { onOpenChange?: (open: boolean) => voi
     paper: { label: '模拟盘', color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.12)' },
     mock: { label: 'MOCK', color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)' },
   };
-  const c = config[mode];
 
   const handleModeChange = async (newMode: 'live' | 'paper' | 'mock') => {
     try {
@@ -78,7 +76,7 @@ function ModeIndicator({ onOpenChange }: { onOpenChange?: (open: boolean) => voi
     <Select
       value={mode}
       onChange={handleModeChange}
-      onDropdownVisibleChange={onOpenChange}
+      onOpenChange={onOpenChange}
       size="small"
       style={{ width: 100 }}
       options={[
@@ -86,56 +84,7 @@ function ModeIndicator({ onOpenChange }: { onOpenChange?: (open: boolean) => voi
         { label: '模拟盘', value: 'paper' },
         { label: '实盘', value: 'live' },
       ]}
-      optionRender={(option) => {
-        const optConfig = config[option.value as keyof typeof config];
-        return (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 10,
-            fontWeight: 700,
-            fontFamily: 'var(--font-mono)',
-            color: optConfig.color,
-            letterSpacing: '1.5px',
-          }}>
-            <span style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: optConfig.color,
-              boxShadow: `0 0 8px ${optConfig.color}80`,
-            }} />
-            {optConfig.label}
-          </div>
-        );
-      }}
-    >
-      <div style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '3px 10px',
-        borderRadius: 99,
-        background: c.bg,
-        border: `1px solid ${c.color}30`,
-        fontSize: 10,
-        fontWeight: 700,
-        fontFamily: 'var(--font-mono)',
-        color: c.color,
-        letterSpacing: '1.5px',
-      }}>
-        <span style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: c.color,
-          boxShadow: `0 0 8px ${c.color}80`,
-          animation: mode === 'live' ? 'pulse-soft 1.5s ease-in-out infinite' : 'none',
-        }} />
-        {c.label}
-      </div>
-    </Select>
+    />
   );
 }
 
@@ -147,8 +96,18 @@ export default function MainLayout() {
   const [username, setUsername] = useState('');
   const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
   const [brokerDropdownOpen, setBrokerDropdownOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { broker, setBroker } = useBrokerStore();
   const connected = useWebSocketStatus();
+
+  // 检测移动端
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -204,6 +163,69 @@ export default function MainLayout() {
     },
   ];
 
+  // 导航渲染函数（桌面侧边栏）
+  const renderDesktopNav = (item: { key: string; icon: React.ReactNode; label: string }) => {
+    const isActive = location.pathname === item.key;
+    return (
+      <Tooltip key={item.key} title={collapsed ? item.label : ''} placement="right">
+        <Link
+          to={item.key}
+          style={{
+            width: collapsed ? 44 : '100%',
+            height: 44,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            paddingLeft: collapsed ? 0 : 16,
+            gap: 12,
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 18,
+            color: isActive ? '#22d3ee' : 'var(--text-tertiary)',
+            background: isActive ? 'rgba(34, 211, 238, 0.1)' : 'transparent',
+            transition: 'all 0.2s var(--ease-out)',
+            position: 'relative',
+            textDecoration: 'none',
+            margin: collapsed ? 0 : '0 8px',
+          }}
+          onMouseEnter={e => {
+            if (!isActive) {
+              e.currentTarget.style.color = 'var(--text-primary)';
+              e.currentTarget.style.background = 'rgba(148, 163, 184, 0.06)';
+            }
+          }}
+          onMouseLeave={e => {
+            if (!isActive) {
+              e.currentTarget.style.color = 'var(--text-tertiary)';
+              e.currentTarget.style.background = 'transparent';
+            }
+          }}
+        >
+          {isActive && (
+            <span style={{
+              position: 'absolute',
+              left: collapsed ? -10 : -8,
+              width: 3,
+              height: 20,
+              borderRadius: '0 2px 2px 0',
+              background: '#22d3ee',
+              boxShadow: '0 0 8px rgba(34, 211, 238, 0.5)',
+            }} />
+          )}
+          {item.icon}
+          {!collapsed && (
+            <span style={{
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: 'var(--font-sans)',
+            }}>
+              {item.label}
+            </span>
+          )}
+        </Link>
+      </Tooltip>
+    );
+  };
+
   return (
     <Layout style={{ minHeight: '100vh', background: 'var(--bg-void)' }}>
       {/* ─── Top Bar ─── */}
@@ -222,11 +244,7 @@ export default function MainLayout() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {/* Logo */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
               width: 28,
               height: 28,
@@ -254,61 +272,69 @@ export default function MainLayout() {
             </span>
           </div>
 
+          {/* Divider */}
           <div style={{
             width: 1,
             height: 20,
             background: 'var(--border-default)',
             margin: '0 4px',
-          }} />
+          }} className="hide-mobile" />
 
-          <Tooltip title="切换交易模式：测试/模拟盘/实盘" open={!modeDropdownOpen && undefined}>
-            <div>
-              <ModeIndicator onOpenChange={setModeDropdownOpen} />
-            </div>
-          </Tooltip>
+          {/* Mode selector - hidden on small mobile */}
+          <div className="hide-mobile">
+            <Tooltip title="切换交易模式：测试/模拟盘/实盘" open={!modeDropdownOpen && undefined}>
+              <div>
+                <ModeIndicator onOpenChange={setModeDropdownOpen} />
+              </div>
+            </Tooltip>
+          </div>
 
+          {/* Divider */}
           <div style={{
             width: 1,
             height: 20,
             background: 'var(--border-default)',
             margin: '0 4px',
-          }} />
+          }} className="hide-mobile" />
 
-          <Tooltip title="选择券商平台" open={!brokerDropdownOpen && undefined}>
-            <Select
-              value={broker}
-              onChange={setBroker}
-              onDropdownVisibleChange={setBrokerDropdownOpen}
-              style={{ width: 130 }}
-              size="small"
-              suffixIcon={<BankOutlined />}
-              options={[
-                { label: 'OKX', value: 'okx' },
-                { label: '国金证券', value: 'guojin' },
-                { label: 'moomoo', value: 'moomoo' },
-              ]}
-            />
-          </Tooltip>
-        </div>
+          {/* Broker selector - hidden on small mobile */}
+          <div className="hide-mobile">
+            <Tooltip title="选择券商平台" open={!brokerDropdownOpen && undefined}>
+              <Select
+                value={broker}
+                onChange={setBroker}
+                onOpenChange={setBrokerDropdownOpen}
+                style={{ width: 130 }}
+                size="small"
+                suffixIcon={<BankOutlined />}
+                options={[
+                  { label: 'OKX', value: 'okx' },
+                  { label: '国金证券', value: 'guojin' },
+                  { label: 'moomoo', value: 'moomoo' },
+                ]}
+              />
+            </Tooltip>
+          </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <LiveClock />
-          <Tooltip title="重启服务">
+          {/* Mobile menu button */}
+          {isMobile && (
             <Button
-              icon={<ReloadOutlined spin={restarting} />}
-              onClick={handleRestart}
-              loading={restarting}
+              icon={<MoreOutlined />}
               size="small"
+              onClick={() => setMobileMenuOpen(true)}
               style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 12,
-                fontWeight: 500,
                 color: 'var(--text-secondary)',
                 borderColor: 'var(--border-default)',
               }}
             />
-          </Tooltip>
-          <div style={{
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>
+            {new Date().toLocaleTimeString('zh-CN', { hour12: false })}
+          </span>
+          <div className="hide-mobile" style={{
             display: 'flex',
             alignItems: 'center',
             gap: 6,
@@ -325,11 +351,27 @@ export default function MainLayout() {
             }} />
             {connected ? 'CONNECTED' : 'DISCONNECTED'}
           </div>
+          <Tooltip title="重启服务" className="hide-mobile">
+            <Button
+              icon={<ReloadOutlined spin={restarting} />}
+              onClick={handleRestart}
+              loading={restarting}
+              size="small"
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--text-secondary)',
+                borderColor: 'var(--border-default)',
+              }}
+            />
+          </Tooltip>
           {import.meta.env.VITE_AUTH_ENABLED === 'true' && (
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
               <Button
                 icon={<UserOutlined />}
                 size="small"
+                className="hide-mobile"
                 style={{
                   fontFamily: 'var(--font-sans)',
                   fontSize: 12,
@@ -349,84 +391,27 @@ export default function MainLayout() {
       </header>
 
       <Layout style={{ background: 'var(--bg-void)', display: 'flex', flexDirection: 'row' }}>
-        {/* ─── Sidebar Rail ─── */}
-        <nav style={{
-          width: collapsed ? 64 : 200,
-          flexShrink: 0,
-          background: 'var(--bg-base)',
-          borderRight: '1px solid var(--border-subtle)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: collapsed ? 'center' : 'stretch',
-          paddingTop: 12,
-          gap: 4,
-          position: 'sticky',
-          top: 48,
-          height: 'calc(100vh - 48px)',
-          overflowY: 'auto',
-          transition: 'width 0.3s var(--ease-out)',
-        }}>
-          {navItems.map(item => {
-            const isActive = location.pathname === item.key;
-            return (
-              <Tooltip key={item.key} title={collapsed ? item.label : ''} placement="right">
-                <Link
-                  to={item.key}
-                  style={{
-                    width: collapsed ? 44 : '100%',
-                    height: 44,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: collapsed ? 'center' : 'flex-start',
-                    paddingLeft: collapsed ? 0 : 16,
-                    gap: 12,
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: 18,
-                    color: isActive ? '#22d3ee' : 'var(--text-tertiary)',
-                    background: isActive ? 'rgba(34, 211, 238, 0.1)' : 'transparent',
-                    transition: 'all 0.2s var(--ease-out)',
-                    position: 'relative',
-                    textDecoration: 'none',
-                    margin: collapsed ? 0 : '0 8px',
-                  }}
-                  onMouseEnter={e => {
-                    if (!isActive) {
-                      e.currentTarget.style.color = 'var(--text-primary)';
-                      e.currentTarget.style.background = 'rgba(148, 163, 184, 0.06)';
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (!isActive) {
-                      e.currentTarget.style.color = 'var(--text-tertiary)';
-                      e.currentTarget.style.background = 'transparent';
-                    }
-                  }}
-                >
-                  {isActive && (
-                    <span style={{
-                      position: 'absolute',
-                      left: collapsed ? -10 : -8,
-                      width: 3,
-                      height: 20,
-                      borderRadius: '0 2px 2px 0',
-                      background: '#22d3ee',
-                      boxShadow: '0 0 8px rgba(34, 211, 238, 0.5)',
-                    }} />
-                  )}
-                  {item.icon}
-                  {!collapsed && (
-                    <span style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      fontFamily: 'var(--font-sans)',
-                    }}>
-                      {item.label}
-                    </span>
-                  )}
-                </Link>
-              </Tooltip>
-            );
-          })}
+        {/* ─── Desktop Sidebar Rail ─── */}
+        <nav
+          className="desktop-sidebar"
+          style={{
+            width: collapsed ? 64 : 200,
+            flexShrink: 0,
+            background: 'var(--bg-base)',
+            borderRight: '1px solid var(--border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: collapsed ? 'center' : 'stretch',
+            paddingTop: 12,
+            gap: 4,
+            position: 'sticky',
+            top: 48,
+            height: 'calc(100vh - 48px)',
+            overflowY: 'auto',
+            transition: 'width 0.3s var(--ease-out)',
+          }}
+        >
+          {allNavItems.map(renderDesktopNav)}
 
           {/* Toggle Button */}
           <div style={{ marginTop: 'auto', padding: '12px 0' }}>
@@ -462,12 +447,16 @@ export default function MainLayout() {
         </nav>
 
         {/* ─── Content Area ─── */}
-        <Content style={{
-          padding: '28px 32px',
-          background: 'var(--bg-void)',
-          minHeight: 'calc(100vh - 48px)',
-          position: 'relative',
-        }}>
+        <Content
+          className="page-content"
+          style={{
+            padding: '28px 32px',
+            background: 'var(--bg-void)',
+            minHeight: 'calc(100vh - 48px)',
+            position: 'relative',
+            flex: 1,
+          }}
+        >
           {/* Subtle ambient gradient */}
           <div style={{
             position: 'fixed',
@@ -494,6 +483,167 @@ export default function MainLayout() {
           </div>
         </Content>
       </Layout>
+
+      {/* ─── Mobile Bottom Tab Bar ─── */}
+      {isMobile && (
+        <nav className="bottom-tab-bar">
+          {coreNavItems.map(item => {
+            const isActive = location.pathname === item.key;
+            return (
+              <Link
+                key={item.key}
+                to={item.key}
+                className={`bottom-tab-item ${isActive ? 'active' : ''}`}
+                style={{ position: 'relative' }}
+              >
+                <span className="bottom-tab-icon">{item.icon}</span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+          {/* More tab opens drawer */}
+          <button
+            className="bottom-tab-item"
+            onClick={() => setMobileMenuOpen(true)}
+            style={{ background: 'none', border: 'none' }}
+          >
+            <span className="bottom-tab-icon"><MoreOutlined /></span>
+            <span>更多</span>
+          </button>
+        </nav>
+      )}
+
+      {/* ─── Mobile Drawer Menu ─── */}
+      <Drawer
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              background: 'linear-gradient(135deg, #22d3ee, #06b6d4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 14,
+              fontWeight: 800,
+              color: '#0b0c10',
+            }}>
+              Q
+            </div>
+            <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 800, fontSize: 15 }}>
+              Quant<span style={{ color: 'var(--cyan-400)' }}>Apex</span>
+            </span>
+          </div>
+        }
+        placement="bottom"
+        onClose={() => setMobileMenuOpen(false)}
+        open={mobileMenuOpen}
+        closeIcon={null}
+        styles={{
+          header: {
+            background: 'var(--bg-base)',
+            borderBottom: '1px solid var(--border-subtle)',
+            padding: '12px 20px',
+          },
+          body: {
+            background: 'var(--bg-base)',
+            padding: '8px 0',
+          },
+          mask: {
+            background: 'rgba(0, 0, 0, 0.6)',
+          },
+        }}
+        style={{ height: '70vh' }}
+      >
+        {/* 交易模式切换 */}
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 10 }}>
+            交易模式
+          </div>
+          <ModeIndicator onOpenChange={setModeDropdownOpen} />
+        </div>
+
+        {/* 券商选择 */}
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 10 }}>
+            券商平台
+          </div>
+          <Select
+            value={broker}
+            onChange={setBroker}
+            style={{ width: '100%' }}
+            suffixIcon={<BankOutlined />}
+            options={[
+              { label: 'OKX', value: 'okx' },
+              { label: '国金证券', value: 'guojin' },
+              { label: 'moomoo', value: 'moomoo' },
+            ]}
+          />
+        </div>
+
+        {/* 连接状态 */}
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: connected ? 'var(--gain)' : 'var(--loss)',
+            boxShadow: connected ? '0 0 8px var(--gain)' : '0 0 8px var(--loss)',
+          }} />
+          <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: connected ? 'var(--gain)' : 'var(--loss)' }}>
+            {connected ? '已连接' : '未连接'}
+          </span>
+        </div>
+
+        {/* 导航列表 */}
+        <div style={{ padding: '8px 0' }}>
+          {allNavItems.filter(item => !coreNavItems.some(c => c.key === item.key)).map(item => {
+            const isActive = location.pathname === item.key;
+            return (
+              <Link
+                key={item.key}
+                to={item.key}
+                onClick={() => setMobileMenuOpen(false)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '14px 20px',
+                  color: isActive ? 'var(--cyan-400)' : 'var(--text-secondary)',
+                  background: isActive ? 'rgba(34, 211, 238, 0.08)' : 'transparent',
+                  textDecoration: 'none',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: 'var(--font-sans)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{item.icon}</span>
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* 底部操作 */}
+        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border-subtle)', marginTop: 'auto' }}>
+          <Button
+            icon={<ReloadOutlined spin={restarting} />}
+            onClick={handleRestart}
+            loading={restarting}
+            block
+            style={{ marginBottom: 8 }}
+          >
+            重启服务
+          </Button>
+          {import.meta.env.VITE_AUTH_ENABLED === 'true' && (
+            <Button icon={<LogoutOutlined />} onClick={handleLogout} block danger>
+              退出登录
+            </Button>
+          )}
+        </div>
+      </Drawer>
 
       {/* Noise overlay */}
       <div className="noise-overlay" />

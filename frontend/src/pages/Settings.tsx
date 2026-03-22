@@ -51,7 +51,7 @@ export default function Settings() {
   };
 
   return (
-    <div style={{ padding: '32px 32px 48px', minHeight: '100vh', background: 'var(--bg-base)' }}>
+    <div className="page-content" style={{ padding: '32px 32px 48px', minHeight: '100vh', background: 'var(--bg-base)' }}>
       <div className="page-header animate-in stagger-1">
         <div>
           <h1 className="page-title">Settings</h1>
