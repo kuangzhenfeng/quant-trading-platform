@@ -2,6 +2,7 @@ import pytest
 from app.adapters.okx import OKXAdapter
 
 
+@pytest.mark.skip(reason="需要连接 OKX API，CI 环境网络不通")
 @pytest.mark.asyncio
 async def test_okx_connect():
     """测试 OKX 连接"""
@@ -12,6 +13,7 @@ async def test_okx_connect():
     await adapter.disconnect()
 
 
+@pytest.mark.skip(reason="需要连接 OKX API，CI 环境网络不通")
 @pytest.mark.asyncio
 async def test_okx_get_tick():
     """测试获取 OKX 行情"""

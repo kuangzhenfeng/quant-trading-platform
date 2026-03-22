@@ -10,5 +10,7 @@ docker-compose.override.yml
 backend/users.json
 backend/accounts.json
 backend/quant_trading.db
+backend/quant_trading.db-journal
 backend/data.db
+backend/data.db-journal
 backend/accounts_import.json

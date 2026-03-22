@@ -19,7 +19,7 @@ BrokerAdapter 抽象层统一各平台接口，策略引擎执行量化脚本，
 - 前后端均用 TypeScript 类型注解 / Python 类型注解
 - 前端函数式组件 + Hooks；后端 async/await
 - 注释用中文
-- Git 规范: 禁止提交代码
+- Git 规范: 禁止提交代码，禁止使用git commit命令
 - 用 playwright MCP/skill 验证功能
 - 实盘总额度必须 < 10 美元
 - 严格区分 Mock/模拟盘/实盘，不做降级处理
