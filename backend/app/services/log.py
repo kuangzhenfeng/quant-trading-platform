@@ -127,7 +127,7 @@ class LogService:
             result.append(entry)
             if len(result) >= limit:
                 break
-        return list(reversed(result))
+        return result
 
 
 log_service = LogService()

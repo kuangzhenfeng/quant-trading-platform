@@ -1,10 +1,13 @@
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from app.services.monitor import monitor_service
 from app.services.strategy import strategy_engine
 from app.core.config import settings, TradingMode
-from app.models.db_models import DBStrategyLog
+from app.models.db_models import DBStrategyLog, DBStrategyPerformance, DBPosition, DBOrder
 from app.core.database import AsyncSessionLocal
+from app.repositories.order_repo import OrderRepository
+from app.repositories.position_repo import PositionRepository
+from app.models.schemas import OrderData, PositionData, OrderStatus, OrderSide, OrderType
 
 router = APIRouter(prefix="/api/monitor", tags=["monitor"])
 
@@ -41,7 +44,6 @@ async def get_strategy_status():
     perf_map: dict[str, dict] = {}
     if strategy_ids:
         async with AsyncSessionLocal() as session:
-            from app.models.db_models import DBStrategyPerformance
             result = await session.execute(
                 select(DBStrategyPerformance).where(
                     DBStrategyPerformance.strategy_id.in_(strategy_ids)
@@ -58,7 +60,6 @@ async def get_strategy_status():
     unrealized_pnl_map: dict[str, float] = {}
     if strategy_ids:
         async with AsyncSessionLocal() as session:
-            from app.models.db_models import DBPosition
             # 按 broker+symbol 批量查询持仓
             pos_result = await session.execute(select(DBPosition))
             pos_by_broker_symbol: dict[tuple[str, str], float] = {}
@@ -95,13 +96,6 @@ async def reset_mock_data():
     """重置 Mock 测试数据（仅在 MOCK 模式下可用）"""
     if settings.trading_mode != TradingMode.MOCK:
         raise HTTPException(status_code=400, detail="仅在 MOCK 模式下可用")
-
-    from app.core.database import AsyncSessionLocal
-    from app.repositories.order_repo import OrderRepository
-    from app.repositories.position_repo import PositionRepository
-    from app.models.schemas import OrderData, PositionData, OrderStatus, OrderSide, OrderType
-    from sqlalchemy import delete
-    from app.models.db_models import DBOrder, DBPosition
 
     async with AsyncSessionLocal() as session:
         # 清空现有数据

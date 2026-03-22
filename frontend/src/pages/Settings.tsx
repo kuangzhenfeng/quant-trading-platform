@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { Form, Button, message, Modal } from 'antd';
 import { SettingOutlined, ExclamationCircleOutlined, DeleteOutlined } from '@ant-design/icons';
-import { api } from '../services/api';
+import request from '../services/request';
 
 interface ConfigItem {
   key: string;
@@ -15,9 +15,9 @@ export default function Settings() {
 
   const fetchConfig = useCallback(async () => {
     try {
-      const data = await api.get('/system/config');
+      const res = await request.get('/system/config');
       const values: Record<string, string> = {};
-      data.configs.forEach((c: ConfigItem) => {
+      res.data.configs.forEach((c: ConfigItem) => {
         values[c.key] = c.value || '';
       });
       form.setFieldsValue(values);
@@ -40,7 +40,7 @@ export default function Settings() {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await api.post('/system/reset', {});
+          await request.post('/system/reset', {});
           message.success('系统已重置');
           setTimeout(() => window.location.href = '/setup', 1000);
         } catch {

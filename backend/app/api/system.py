@@ -170,18 +170,12 @@ async def update_config(
             from app.services.account import account_service
             accounts = await account_service.list_accounts()
 
-            # 判断需要的账号类型
             need_paper = (item.value == "paper")
-
             # 检查是否有对应模式的激活账号
-            def check_is_paper(config_value):
-                if need_paper:
-                    return config_value == 'true' or config_value is True
-                else:
-                    return config_value == 'false' or config_value is False or config_value is None
-
             has_valid_account = any(
-                acc.active and check_is_paper(acc.config.get('is_paper'))
+                acc.active and
+                ((need_paper and (acc.config.get('is_paper') == 'true' or acc.config.get('is_paper') is True)) or
+                 (not need_paper and (acc.config.get('is_paper') == 'false' or acc.config.get('is_paper') is False or acc.config.get('is_paper') is None)))
                 for acc in accounts
             )
 

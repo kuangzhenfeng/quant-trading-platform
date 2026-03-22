@@ -9,6 +9,7 @@ export default function Logs() {
   const [level, setLevel] = useState<string | undefined>();
   const [source, setSource] = useState<string | undefined>();
   const [searchText, setSearchText] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 可选的来源列表（从已加载日志中提取唯一值）
   const sourceOptions = useMemo(() => {
@@ -17,12 +18,17 @@ export default function Logs() {
   }, [allLogs]);
 
   const fetchLogs = useCallback(async () => {
-    // 不带 source 过滤，获取全量用于提取来源选项
-    // 后端 LogLevel 枚举是大写 (ERROR/WARNING/INFO)，需转换
-    const params = new URLSearchParams({ limit: '500' });
-    if (level) params.set('level', level.toUpperCase());
-    const data = await logsApi.getLogsRaw(params) as LogsResponse;
-    setAllLogs(data.logs);
+    setIsRefreshing(true);
+    try {
+      // 不带 source 过滤，获取全量用于提取来源选项
+      // 后端 LogLevel 枚举是大写 (ERROR/WARNING/INFO)，需转换
+      const params = new URLSearchParams({ limit: '500' });
+      if (level) params.set('level', level.toUpperCase());
+      const data = await logsApi.getLogsRaw(params) as LogsResponse;
+      setAllLogs(data.logs);
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [level]);
 
   useEffect(() => {
@@ -255,6 +261,11 @@ export default function Logs() {
                   }}
                 >
                   运行日志
+                  {isRefreshing && (
+                    <span style={{ marginLeft: 8, color: 'var(--cyan-400)', fontSize: 12 }}>
+                      刷新中...
+                    </span>
+                  )}
                 </span>
               </div>
 

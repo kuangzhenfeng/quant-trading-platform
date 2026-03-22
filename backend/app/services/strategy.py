@@ -1,7 +1,10 @@
 from typing import Dict
 import asyncio
+from sqlalchemy import select, update
 from app.strategies.base import Strategy, StrategyContext
+from app.strategies.registry import StrategyRegistry
 from app.models.schemas import TickData
+from app.models.db_models import DBStrategyConfig
 from app.repositories.strategy_repo import StrategyRepository
 from app.core.database import AsyncSessionLocal
 
@@ -41,8 +44,6 @@ class StrategyEngine:
                 await self.market_service.subscribe_strategy(strategy_id, broker, symbol)
 
         # 更新数据库状态
-        from sqlalchemy import update
-        from app.models.db_models import DBStrategyConfig
         async with AsyncSessionLocal() as session:
             await session.execute(
                 update(DBStrategyConfig)
@@ -70,8 +71,6 @@ class StrategyEngine:
             self.market_service.unsubscribe_strategy(strategy_id)
 
         # 更新数据库状态
-        from sqlalchemy import update
-        from app.models.db_models import DBStrategyConfig
         async with AsyncSessionLocal() as session:
             await session.execute(
                 update(DBStrategyConfig)
@@ -101,9 +100,6 @@ class StrategyEngine:
 
     async def get_detail(self, strategy_id: str):
         """获取策略详情"""
-        from sqlalchemy import select
-        from app.models.db_models import DBStrategyConfig
-
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(DBStrategyConfig)
@@ -124,10 +120,6 @@ class StrategyEngine:
 
     async def update_params(self, strategy_id: str, params: dict):
         """更新策略参数"""
-        from sqlalchemy import update
-        from app.models.db_models import DBStrategyConfig
-        from app.strategies.registry import StrategyRegistry
-
         if strategy_id not in self.strategies:
             return False
 
@@ -153,10 +145,6 @@ class StrategyEngine:
 
     async def restore_from_db(self):
         """从数据库恢复策略配置和运行状态"""
-        from app.strategies.registry import StrategyRegistry
-        from sqlalchemy import select
-        from app.models.db_models import DBStrategyConfig
-
         async with AsyncSessionLocal() as session:
             result = await session.execute(select(DBStrategyConfig))
             configs = result.scalars().all()

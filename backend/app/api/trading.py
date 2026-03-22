@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.services.trading import trading_service, get_monitor_service
+from app.services.trading import trading_service
+from app.services.monitor import monitor_service
 from app.models.schemas import OrderSide, OrderType, LogLevel
 from app.services.log import log_service
 from app.core.config import settings
@@ -81,7 +82,7 @@ async def get_positions(broker: str):
     """获取持仓"""
     try:
         positions = await trading_service.get_positions(broker)
-        await get_monitor_service().update_positions(broker, positions)
+        await monitor_service.update_positions(broker, positions)
         return {"positions": positions}
     except Exception as e:
         log_service.log(LogLevel.WARNING, "trading", f"获取持仓失败: {broker}, {e}")
@@ -105,6 +106,5 @@ async def get_account(broker: str):
 @router.get("/orders/{broker}")
 async def get_orders(broker: str):
     """获取订单历史"""
-    from app.services.monitor import monitor_service
     orders = await monitor_service.get_orders(broker)
     return {"orders": orders}

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Descriptions, Tag, message } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
-import { api } from '../services/api';
+import request from '../services/request';
 
 interface SystemInfo {
   app_name: string;
@@ -19,8 +19,8 @@ export default function About() {
 
   const fetchInfo = useCallback(async () => {
     try {
-      const data = await api.get('/system/info');
-      setInfo(data);
+      const res = await request.get('/system/info');
+      setInfo(res.data);
     } catch {
       message.error('加载系统信息失败');
     }

@@ -6,6 +6,24 @@ from app.services.log import log_service
 import uuid
 
 
+def _is_paper(config: dict) -> bool:
+    """解析 is_paper 配置字段"""
+    val = config.get('is_paper')
+    return val == 'true' or val is True
+
+
+async def _deactivate_other_accounts(repo: AccountRepository, broker: str, exclude_id: str | None, is_paper: bool):
+    """停用同平台同模式的其他账户"""
+    all_accounts = await repo.get_all()
+    for acc in all_accounts:
+        if (acc.broker == broker and
+                acc.id != exclude_id and
+                acc.active and
+                _is_paper(acc.config) == is_paper):
+            acc.active = False
+            await repo.update(acc)
+
+
 class AccountService:
     """账户管理服务"""
 
@@ -16,17 +34,7 @@ class AccountService:
 
             # 如果新账户要启用，先停用同平台同模式的其他账户
             if config.active:
-                is_paper_value = config.config.get('is_paper')
-                is_paper = is_paper_value == 'true' or is_paper_value is True
-                all_accounts = await repo.get_all()
-                for acc in all_accounts:
-                    acc_is_paper_value = acc.config.get('is_paper')
-                    acc_is_paper = acc_is_paper_value == 'true' or acc_is_paper_value is True
-                    if (acc.broker == config.broker and
-                        acc.active and
-                        acc_is_paper == is_paper):
-                        acc.active = False
-                        await repo.update(acc)
+                await _deactivate_other_accounts(repo, config.broker, None, _is_paper(config.config))
 
             await repo.create(config)
             log_service.log(LogLevel.INFO, "account", f"添加账户成功: {config.broker} - {config.name} (ID: {config.id})")
@@ -66,18 +74,7 @@ class AccountService:
 
             # 如果要激活账号，先停用同平台同模式的其他账号
             if active:
-                is_paper_value = account.config.get('is_paper')
-                is_paper = is_paper_value == 'true' or is_paper_value is True
-                all_accounts = await repo.get_all()
-                for acc in all_accounts:
-                    acc_is_paper_value = acc.config.get('is_paper')
-                    acc_is_paper = acc_is_paper_value == 'true' or acc_is_paper_value is True
-                    if (acc.broker == account.broker and
-                        acc.id != account_id and
-                        acc.active and
-                        acc_is_paper == is_paper):
-                        acc.active = False
-                        await repo.update(acc)
+                await _deactivate_other_accounts(repo, account.broker, account_id, _is_paper(account.config))
 
             account.active = active
             await repo.update(account)

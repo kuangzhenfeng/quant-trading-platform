@@ -1,37 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Select,
-  InputNumber,
-  Button,
-  Space,
-  message,
-  Table,
-  Tag,
-  Modal,
-  Drawer,
-  Segmented,
-  Tooltip,
-} from 'antd';
-import {
-  RocketOutlined,
-  PlayCircleOutlined,
-  PauseCircleOutlined,
-  SettingOutlined,
-  TagOutlined,
-  ApartmentOutlined,
-  UnorderedListOutlined,
-  EditOutlined,
-  FileTextOutlined,
-  DeleteOutlined,
-  InfoCircleOutlined,
-  ExpandOutlined,
-  CompressOutlined,
-  ThunderboltOutlined,
-  RiseOutlined,
-  FallOutlined,
-  BarChartOutlined,
-} from '@ant-design/icons';
+import { Select, InputNumber, Button, Space, Tag, message, Table, Modal, Drawer, Segmented, Tooltip } from 'antd';
+import { RocketOutlined, PlayCircleOutlined, PauseCircleOutlined, SettingOutlined, TagOutlined, ApartmentOutlined, UnorderedListOutlined, EditOutlined, FileTextOutlined, DeleteOutlined, InfoCircleOutlined, ExpandOutlined, CompressOutlined, ThunderboltOutlined, RiseOutlined, FallOutlined, BarChartOutlined } from '@ant-design/icons';
 import { strategyApi } from '../services/strategy';
+import { monitorApi } from '../services/monitor';
+import type { ApiError, Strategy, StrategySignal, StrategyPerformance, StrategiesResponse, SignalsResponse } from '../types/api';
+import { useBrokerStore } from '../stores/brokerStore';
 import './Monitor.css';
 
 const formatTimestamp = (ts: string): string => {
@@ -42,16 +15,6 @@ const formatTimestamp = (ts: string): string => {
     return ts;
   }
 };
-import { monitorApi } from '../services/monitor';
-import type {
-  ApiError,
-  Strategy,
-  StrategiesResponse,
-  StrategySignal,
-  StrategyPerformance,
-  SignalsResponse,
-} from '../types/api';
-import { useBrokerStore } from '../stores/brokerStore';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

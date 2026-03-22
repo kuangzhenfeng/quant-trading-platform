@@ -1,5 +1,5 @@
 """认证 API 端点"""
-from fastapi import APIRouter, HTTPException, Request, Depends, Header
+from fastapi import APIRouter, HTTPException, Request, Depends
 from app.models.user import UserLogin, UserCreate, Token, UserInfo, User
 from app.services.user import authenticate_user, create_user, get_user
 from app.core.security import create_access_token, verify_token
