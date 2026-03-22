@@ -17,10 +17,14 @@ export interface KlinesResponse {
 }
 
 export const marketApi = {
-  getKlines: async (symbol: string, broker: string, interval: string, limit: number = 100) => {
+  getKlines: async (symbol: string, broker: string, interval: string, limit: number = 100, signal?: AbortSignal) => {
     const { data } = await request.get<KlinesResponse>(
-      `/market/klines/${symbol}?broker=${broker}&interval=${interval}&limit=${limit}`
+      `/market/klines/${symbol}?broker=${broker}&interval=${interval}&limit=${limit}`,
+      signal ? { signal } : undefined
     );
+    if (!data.klines) {
+      throw new Error(data.message || '获取K线数据失败');
+    }
     return data;
   },
 

@@ -15,6 +15,7 @@ request.interceptors.request.use((config) => {
 request.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (axios.isCancel(error)) return Promise.reject(error); // AbortController 取消的请求
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';

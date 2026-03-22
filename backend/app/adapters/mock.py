@@ -157,7 +157,14 @@ class MockAdapter(BrokerAdapter):
 
         klines = []
         current = start_time
-        price = 50000.0
+        # 根据 symbol 设置基准价格
+        base_prices = {
+            "BTC-USDT": 65000.0,
+            "ETH-USDT": 3500.0,
+            "BTC/USDT": 65000.0,
+            "ETH/USDT": 3500.0,
+        }
+        price = base_prices.get(symbol, 10000.0)
 
         delta_map = {
             "1m": timedelta(minutes=1),

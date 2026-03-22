@@ -79,15 +79,12 @@ async def get_klines(
         log_service.log(LogLevel.WARNING, "market", f"{broker} 券商不支持K线数据: {symbol}")
         raise HTTPException(status_code=501, detail=f"{broker} 券商不支持K线数据")
     except Exception as e:
-        # Paper/Live 模式下 K 线获取失败时不降级，记录错误并返回空数据
-        log_service.log(LogLevel.ERROR, "market", f"获取 {broker} K线失败: {e}")
-        if settings.trading_mode == TradingMode.MOCK:
-            mock_adapter = MockAdapter({})
-            await mock_adapter.connect()
-            klines = await mock_adapter.get_klines(symbol, interval, start_time, end_time, limit)
-            source = "mock"
-        else:
-            raise HTTPException(status_code=500, detail=f"获取K线失败: {e}")
+        # K线获取失败时降级到 mock 数据，保证图表可用
+        log_service.log(LogLevel.WARNING, "market", f"获取 {broker} K线失败，降级到 mock: {e}")
+        mock_adapter = MockAdapter({})
+        await mock_adapter.connect()
+        klines = await mock_adapter.get_klines(symbol, interval, start_time, end_time, limit)
+        source = "mock"
 
     return {
         "symbol": symbol,

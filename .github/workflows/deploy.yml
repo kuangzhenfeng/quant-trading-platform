@@ -92,8 +92,9 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             echo "==> 替换镜像标签"
-            sed -i "s|REPO_PATH|${REPO_OWNER}/${REPO_NAME}|g" docker-compose.prod.yml
-            sed -i "s|IMAGE_TAG|${IMAGE_TAG}|g" docker-compose.prod.yml
+            cp docker-compose.prod.yml docker-compose.prod.yml.bak
+            sed "s|ghcr.io/REPO_PATH|${REGISTRY}|g; s|:IMAGE_TAG|:${IMAGE_TAG}|g" docker-compose.prod.yml.bak > docker-compose.prod.yml
+            rm docker-compose.prod.yml.bak
 
             echo "==> 拉取最新镜像"
             docker pull "${BACKEND_IMAGE}:${IMAGE_TAG}"
@@ -140,9 +141,16 @@ jobs:
     if: failure()
     permissions:
       contents: read
+      packages: read
     environment: production
 
     steps:
+      - name: Extract repository owner and name
+        id: repo
+        run: |
+          echo "owner=$(echo '${{ github.repository }}' | cut -d'/' -f1)" >> $GITHUB_OUTPUT
+          echo "name=$(echo '${{ github.repository }}' | cut -d'/' -f2)" >> $GITHUB_OUTPUT
+
       - name: Rollback
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -151,9 +159,32 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || '22' }}
           script: |
+            set -e
+
+            REPO_OWNER="${{ github.repository_owner }}"
+            REPO_NAME="${{ github.event.repository.name }}"
+            REGISTRY="ghcr.io/${REPO_OWNER}/${REPO_NAME}"
+            IMAGE_TAG="${{ github.sha }}"
+
+            echo "==> 检测到部署失败，执行回滚"
             PROJECT_DIR="${{ secrets.SERVER_PROJECT_DIR || '/opt/quant-trading-platform' }}"
             cd "$PROJECT_DIR"
-            echo "==> 检测到部署失败，执行回滚"
+
+            echo "==> 登录 Container Registry"
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            echo "==> 重新生成 compose 文件（使用当前 SHA 的镜像）"
+            cp docker-compose.prod.yml docker-compose.prod.yml.rollback 2>/dev/null || true
+            # 从 git 拉取最新 compose 模板（确保干净状态）
+            git checkout docker-compose.prod.yml 2>/dev/null || true
+            sed "s|ghcr.io/REPO_PATH|${REGISTRY}|g; s|:IMAGE_TAG|:${IMAGE_TAG}|g" docker-compose.prod.yml > docker-compose.prod.yml.tmp
+            mv docker-compose.prod.yml.tmp docker-compose.prod.yml
+
+            echo "==> 拉取镜像"
+            docker pull "${REGISTRY}/backend:${IMAGE_TAG}"
+            docker pull "${REGISTRY}/frontend:${IMAGE_TAG}"
+
+            echo "==> 重启服务"
             docker compose -f docker-compose.prod.yml down
             docker compose -f docker-compose.prod.yml up -d
             echo "==> 回滚完成"
