@@ -121,6 +121,20 @@ class OKXLiveAdapter(BrokerAdapter):
         except Exception as e:
             log_service.log(LogLevel.ERROR, "adapter:okx", f"OKX 行情订阅异常: {symbols}, 错误: {e}")
 
+    async def _get_usdt_balance(self) -> float:
+        """获取账户 USDT 可用余额"""
+        path = "/api/v5/account/balance"
+        headers = self._get_headers("GET", path)
+        response = await self.client.get(path, headers=headers)
+        data = response.json()
+        if data["code"] != "0":
+            return 0.0
+        for account in data.get("data", []):
+            for detail in account.get("details", []):
+                if detail.get("ccy") == "USDT":
+                    return float(detail.get("availBal", 0))
+        return 0.0
+
     async def place_order(
         self,
         symbol: str,
@@ -140,6 +154,10 @@ class OKXLiveAdapter(BrokerAdapter):
         side_str = "buy" if side == OrderSide.BUY else "sell"
         order_type_str = "limit" if order_type == OrderType.LIMIT else "market"
 
+        # 下单前查询 USDT 余额
+        usdt_balance = await self._get_usdt_balance()
+        log_service.log(LogLevel.WARNING, "adapter:okx", f"[下单预检] {symbol} {side_str} {order_type_str} quantity={quantity}")
+
         body_data = {
             "instId": symbol,
             "tdMode": "cash",
@@ -149,27 +167,34 @@ class OKXLiveAdapter(BrokerAdapter):
         }
 
         # 市价买入：sz表示花费金额，需要转换
+        actual_sz = quantity
         if order_type == OrderType.MARKET and side == OrderSide.BUY:
-            # 获取当前价格估算金额
             tick = await self.get_tick(symbol)
-            amount = quantity * tick.last_price
-            body_data["sz"] = str(amount)
+            actual_sz = quantity * tick.last_price
+            body_data["sz"] = str(actual_sz)
+            log_service.log(LogLevel.WARNING, "adapter:okx", f"[下单预检] 市价买入，当前价格={tick.last_price}, 实际扣款金额={actual_sz:.2f} USDT, 可用余额={usdt_balance:.2f} USDT")
 
         if price and order_type == OrderType.LIMIT:
             body_data["px"] = str(price)
+            log_service.log(LogLevel.WARNING, "adapter:okx", f"[下单预检] 限价单，价格={price}, 可用余额={usdt_balance:.2f} USDT")
 
         body = json.dumps(body_data)
+        log_service.log(LogLevel.WARNING, "adapter:okx", f"[下单请求] POST {path}, body={body}, 可用USDT={usdt_balance:.2f}")
         headers = self._get_headers("POST", path, body)
         response = await self.client.post(path, content=body, headers=headers)
         data = response.json()
 
         if data["code"] != "0":
-            error_msg = f"OKX API Error - Code: {data.get('code')}, Msg: {data.get('msg')}, Data: {data.get('data')}"
-            log_service.log(LogLevel.ERROR, "adapter:okx", f"OKX 下单失败: {error_msg}")
+            s_msg = ""
+            for item in data.get("data", []):
+                s_msg += f"  clOrdId={item.get('clOrdId')} ordId={item.get('ordId')} sCode={item.get('sCode')} sMsg={item.get('sMsg')} tag={item.get('tag')}"
+            error_msg = f"OKX 下单失败 - code={data.get('code')} msg={data.get('msg')} data=[{s_msg}]"
+            log_service.log(LogLevel.ERROR, "adapter:okx", error_msg)
+            log_service.log(LogLevel.ERROR, "adapter:okx", f"[下单详情] symbol={symbol} side={side_str} type={order_type_str} sz={actual_sz} px={price or '市价'} 可用USDT={usdt_balance:.2f}")
             raise BrokerAPIError(error_msg)
 
         order_id = data["data"][0]["ordId"]
-        log_service.log(LogLevel.INFO, "adapter:okx", f"OKX 下单成功: {symbol} {side_str} {quantity} @ {price or '市价'}, 订单ID: {order_id}")
+        log_service.log(LogLevel.INFO, "adapter:okx", f"OKX 下单成功: {symbol} {side_str} {actual_sz} @ {price or '市价'}, 订单ID: {order_id}")
         return order_id
 
     async def cancel_order(self, order_id: str) -> bool:

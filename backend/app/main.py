@@ -93,7 +93,9 @@ async def lifespan(app: FastAPI):
 
     _snapshot_task = asyncio.create_task(update_all_performance_snapshots())
     _push_task = asyncio.create_task(market_service.start_push())
+    log_service.start_cleanup_task()
     yield
+    log_service.stop_cleanup_task()
     market_service.stop_push()
     _push_task.cancel()
     _snapshot_task.cancel()

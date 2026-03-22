@@ -4,6 +4,23 @@ import { strategyApi } from '../services/strategy';
 import { monitorApi } from '../services/monitor';
 import type { StrategySignal } from '../types/api';
 
+// 规范化参数：Proxy对象或任何值 → 字符串
+const toStr = (v: unknown): string => {
+  if (typeof v === 'string') return v;
+  if (v && typeof v === 'object' && 'current' in (v as any)) return String((v as any).current);
+  return String(v ?? '');
+};
+
+// 规范化数组
+const toStrArr = (v: unknown): string[] => {
+  if (Array.isArray(v)) return v.map(toStr);
+  if (typeof v === 'object' && v !== null) {
+    // 可能是 Proxy 包装的数组，尝试 Object.values
+    return Object.values(v as Record<string, unknown>).map(toStr);
+  }
+  return [];
+};
+
 export function useStrategyMarkers() {
   const [signals, setSignals] = useState<Record<string, StrategySignal[]>>({});
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
@@ -13,23 +30,6 @@ export function useStrategyMarkers() {
   const pollingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // 用 ref 保存 symbol，避免闭包问题
   const klineSymbolRef = useRef<string>('');
-
-  // 规范化参数：Proxy对象或任何值 → 字符串
-  const toStr = (v: unknown): string => {
-    if (typeof v === 'string') return v;
-    if (v && typeof v === 'object' && 'current' in (v as any)) return String((v as any).current);
-    return String(v ?? '');
-  };
-
-  // 规范化数组
-  const toStrArr = (v: unknown): string[] => {
-    if (Array.isArray(v)) return v.map(toStr);
-    if (typeof v === 'object' && v !== null) {
-      // 可能是 Proxy 包装的数组，尝试 Object.values
-      return Object.values(v as Record<string, unknown>).map(toStr);
-    }
-    return [];
-  };
 
   // 加载策略列表
   const loadStrategies = useCallback(async () => {
