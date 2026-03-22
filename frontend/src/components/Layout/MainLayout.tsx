@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Layout, Tooltip, Select, Button, message, Dropdown, Drawer } from 'antd';
+const { Content } = Layout;
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -22,12 +23,85 @@ import {
 } from '@ant-design/icons';
 import { useTradingModeStore } from '../../stores/tradingModeStore';
 import { useBrokerStore } from '../../stores/brokerStore';
+import { useThemeStore } from '../../stores/themeStore';
 import { authService } from '../../services/auth';
 import { systemApi } from '../../services/system';
 import { useWebSocketStatus } from '../../hooks/useWebSocketStatus';
 import TopProgressBar from '../TopProgressBar';
 
-const { Content } = Layout;
+// 太阳/月亮图标 SVG 组件
+function SunIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+
+// 主题切换按钮
+function ThemeToggle() {
+  const { mode, toggleMode } = useThemeStore();
+  const isDark = mode === 'dark';
+
+  return (
+    <Tooltip title={isDark ? '切换到亮色主题' : '切换到暗色主题'}>
+      <button
+        onClick={toggleMode}
+        aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 8,
+          border: '1px solid var(--border-default)',
+          background: 'transparent',
+          color: isDark ? 'var(--amber-400)' : 'var(--text-tertiary)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.borderColor = isDark
+            ? 'rgba(245, 158, 11, 0.4)'
+            : 'rgba(30, 41, 59, 0.2)';
+          e.currentTarget.style.background = isDark
+            ? 'rgba(245, 158, 11, 0.08)'
+            : 'rgba(30, 41, 59, 0.04)';
+          e.currentTarget.style.transform = 'scale(1.08)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.borderColor = 'var(--border-default)';
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.transform = 'scale(1)';
+        }}
+      >
+        <span
+          key={mode}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            animation: 'themeIconSpin 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
+          {isDark ? <SunIcon /> : <MoonIcon />}
+        </span>
+      </button>
+    </Tooltip>
+  );
+}
 
 // 核心页面 — 底部 Tab Bar 显示
 const coreNavItems = [
@@ -100,6 +174,7 @@ export default function MainLayout() {
   const [isMobile, setIsMobile] = useState(false);
   const { broker, setBroker } = useBrokerStore();
   const connected = useWebSocketStatus();
+  const isDark = useThemeStore((s) => s.mode) === 'dark';
 
   // 检测移动端
   useEffect(() => {
@@ -180,7 +255,7 @@ export default function MainLayout() {
             gap: 12,
             borderRadius: 'var(--radius-sm)',
             fontSize: 18,
-            color: isActive ? '#22d3ee' : 'var(--text-tertiary)',
+            color: isActive ? 'var(--cyan-400)' : 'var(--text-tertiary)',
             background: isActive ? 'rgba(34, 211, 238, 0.1)' : 'transparent',
             transition: 'all 0.2s var(--ease-out)',
             position: 'relative',
@@ -207,7 +282,7 @@ export default function MainLayout() {
               width: 3,
               height: 20,
               borderRadius: '0 2px 2px 0',
-              background: '#22d3ee',
+              background: 'var(--cyan-400)',
               boxShadow: '0 0 8px rgba(34, 211, 238, 0.5)',
             }} />
           )}
@@ -249,15 +324,19 @@ export default function MainLayout() {
               width: 28,
               height: 28,
               borderRadius: 7,
-              background: 'linear-gradient(135deg, #22d3ee, #06b6d4)',
+              background: isDark
+                ? 'linear-gradient(135deg, #22d3ee, #06b6d4)'
+                : 'linear-gradient(135deg, #f59e0b, #d97706)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: 14,
               fontWeight: 800,
-              color: '#0b0c10',
+              color: '#ffffff',
               fontFamily: 'var(--font-sans)',
-              boxShadow: '0 0 16px rgba(34, 211, 238, 0.3)',
+              boxShadow: isDark
+                ? '0 0 16px rgba(34, 211, 238, 0.3)'
+                : '0 0 16px rgba(245, 158, 11, 0.25)',
             }}>
               Q
             </div>
@@ -366,6 +445,9 @@ export default function MainLayout() {
               }}
             />
           </Tooltip>
+
+          {/* 主题切换 */}
+          <ThemeToggle />
           {import.meta.env.VITE_AUTH_ENABLED === 'true' && (
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
               <Button
@@ -458,7 +540,7 @@ export default function MainLayout() {
           }}
         >
           {/* Subtle ambient gradient */}
-          <div style={{
+          <div className="ambient-gradient-top" style={{
             position: 'fixed',
             top: 0,
             right: 0,
@@ -468,7 +550,7 @@ export default function MainLayout() {
             pointerEvents: 'none',
             zIndex: 0,
           }} />
-          <div style={{
+          <div className="ambient-gradient-bottom" style={{
             position: 'fixed',
             bottom: 0,
             left: '20%',
@@ -521,13 +603,15 @@ export default function MainLayout() {
               width: 28,
               height: 28,
               borderRadius: 7,
-              background: 'linear-gradient(135deg, #22d3ee, #06b6d4)',
+              background: isDark
+                ? 'linear-gradient(135deg, #22d3ee, #06b6d4)'
+                : 'linear-gradient(135deg, #f59e0b, #d97706)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: 14,
               fontWeight: 800,
-              color: '#0b0c10',
+              color: '#ffffff',
             }}>
               Q
             </div>
@@ -594,6 +678,44 @@ export default function MainLayout() {
           <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: connected ? 'var(--gain)' : 'var(--loss)' }}>
             {connected ? '已连接' : '未连接'}
           </span>
+        </div>
+
+        {/* 主题切换 */}
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 10 }}>
+            外观主题
+          </div>
+          <button
+            onClick={() => { useThemeStore.getState().toggleMode(); }}
+            style={{
+              width: '100%',
+              height: 36,
+              borderRadius: 8,
+              border: '1px solid var(--border-default)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              fontSize: 13,
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 500,
+              transition: 'all 0.2s var(--ease-out)',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = 'var(--border-accent)';
+              e.currentTarget.style.background = 'var(--bg-raised)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'var(--border-default)';
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            {useThemeStore((s) => s.mode) === 'dark' ? <SunIcon /> : <MoonIcon />}
+            {useThemeStore((s) => s.mode) === 'dark' ? '切换到亮色主题' : '切换到暗色主题'}
+          </button>
         </div>
 
         {/* 导航列表 */}

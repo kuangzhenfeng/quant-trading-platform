@@ -326,10 +326,114 @@
   border-left-color: var(--log-level-color, #94a3b8);
 }
 
-.log-entry[data-level-color="#f87171"]:hover { --log-level-color: #f87171; }
-.log-entry[data-level-color="#fbbf24"]:hover { --log-level-color: #fbbf24; }
-.log-entry[data-level-color="#22d3ee"]:hover { --log-level-color: #22d3ee; }
-.log-entry[data-level-color="#94a3b8"]:hover { --log-level-color: #94a3b8; }
+.log-entry[data-level-color="#f87171"]:hover { --log-level-color: var(--loss); }
+.log-entry[data-level-color="#fbbf24"]:hover { --log-level-color: var(--amber-400); }
+.log-entry[data-level-color="#22d3ee"]:hover { --log-level-color: var(--cyan-400); }
+.log-entry[data-level-color="#94a3b8"]:hover { --log-level-color: var(--text-tertiary); }
+
+/* ─── Light Theme Overrides ─────────────────────────────────────────────── */
+[data-theme="light"] .stat-card {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+}
+
+[data-theme="light"] .stat-card:hover {
+  border-color: var(--border-accent) !important;
+  box-shadow: var(--shadow-md), 0 4px 16px rgba(245, 158, 11, 0.1) !important;
+  transform: translateY(-2px);
+}
+
+/* Scan line animation uses amber in light theme */
+[data-theme="light"] .stat-card::before {
+  background: linear-gradient(90deg, transparent, var(--cyan-400), transparent);
+}
+
+[data-theme="light"] .pnl-card {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-accent) !important;
+}
+
+[data-theme="light"] .table-card {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+}
+
+[data-theme="light"] .table-card:hover {
+  border-color: var(--border-strong) !important;
+}
+
+[data-theme="light"] .table-card .ant-card-head {
+  background: rgba(245, 158, 11, 0.04) !important;
+  border-bottom-color: var(--border-subtle) !important;
+}
+
+[data-theme="light"] .table-card .ant-table-thead > tr > th {
+  background: rgba(245, 158, 11, 0.03) !important;
+  color: var(--text-secondary) !important;
+  border-bottom-color: var(--border-subtle) !important;
+}
+
+[data-theme="light"] .table-card .ant-table-tbody > tr:hover > td {
+  background: rgba(245, 158, 11, 0.03) !important;
+}
+
+[data-theme="light"] .table-card .ant-table-tbody > tr:nth-child(even) > td {
+  background: rgba(245, 158, 11, 0.015) !important;
+}
+
+[data-theme="light"] .table-card .ant-table-tbody > tr:nth-child(even):hover > td {
+  background: rgba(245, 158, 11, 0.03) !important;
+}
+
+[data-theme="light"] .monitor-container::before {
+  background:
+    radial-gradient(ellipse 60% 40% at 15% 20%, rgba(245, 158, 11, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 85% 75%, rgba(251, 191, 36, 0.04) 0%, transparent 60%);
+}
+
+[data-theme="light"] .monitor-container .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--cyan-500) !important;
+}
+
+[data-theme="light"] .monitor-container .ant-tabs-ink-bar {
+  background: var(--cyan-400) !important;
+}
+
+[data-theme="light"] .monitor-container .ant-select-selector {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .monitor-container .ant-select-selector:hover,
+[data-theme="light"] .monitor-container .ant-select-focused .ant-select-selector {
+  border-color: var(--cyan-400) !important;
+}
+
+[data-theme="light"] .monitor-container .ant-select-dropdown {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-default) !important;
+}
+
+[data-theme="light"] .monitor-container .ant-select-item-option-active {
+  background: rgba(245, 158, 11, 0.08) !important;
+}
+
+[data-theme="light"] .monitor-container .ant-select-item-option-selected {
+  background: rgba(245, 158, 11, 0.12) !important;
+  color: var(--cyan-500) !important;
+}
+
+/* Log entry hover — light theme accent */
+[data-theme="light"] .log-entry:hover {
+  background: rgba(30, 41, 59, 0.04);
+}
+
+/* ─── Light Theme — Log Level Tag Colors ──────────────────────────────── */
+/* Ant Design Tag uses color prop as background in some cases */
+[data-theme="light"] .log-entry .ant-tag {
+  border: 1px solid currentColor !important;
+}
 
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 1280px) {

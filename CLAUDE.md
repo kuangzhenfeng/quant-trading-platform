@@ -23,6 +23,7 @@ BrokerAdapter 抽象层统一各平台接口，策略引擎执行量化脚本，
 - 用 playwright MCP/skill 验证功能
 - 实盘总额度必须 < 10 美元
 - 严格区分 Mock/模拟盘/实盘，不做降级处理
+- 默认登陆账号密码为admin/admin
 
 ## 命令
 ```bash

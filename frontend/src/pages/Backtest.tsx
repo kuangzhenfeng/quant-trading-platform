@@ -255,7 +255,7 @@ export default function Backtest() {
                 textTransform: 'uppercase',
                 border: 'none',
                 borderRadius: 'var(--radius-sm)',
-                background: 'linear-gradient(135deg, var(--cyan-400) 0%, #0891b2 100%)',
+                background: 'linear-gradient(135deg, var(--cyan-400) 0%, var(--cyan-500) 100%)',
                 boxShadow: '0 0 16px rgba(34, 211, 238, 0.35), 0 2px 8px rgba(0,0,0,0.3)',
                 cursor: 'pointer',
               }}

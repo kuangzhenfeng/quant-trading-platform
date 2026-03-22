@@ -7,6 +7,57 @@ import { useMarketWebSocket } from '../hooks/useMarketWebSocket';
 import { useBrokerStore } from '../stores/brokerStore';
 import { marketApi } from '../services/market';
 
+// 获取亮色/暗色主题对应的图表颜色（图表库不支持CSS变量，需要实际颜色值）
+function getChartColors() {
+  const root = document.documentElement;
+  const isDark = root.getAttribute('data-theme') !== 'light';
+
+  return {
+    // 容器背景
+    containerBg: isDark ? 'rgba(22, 24, 31, 0.85)' : 'rgba(255, 255, 255, 0.95)',
+    containerBorder: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(30, 41, 59, 0.15)',
+    // 文字
+    textPrimary: isDark ? '#e2e8f0' : '#1e293b',
+    textSecondary: isDark ? '#94a3b8' : '#475569',
+    textMuted: isDark ? '#64748b' : '#94a3b8',
+    // 网格
+    gridColor: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(30, 41, 59, 0.1)',
+    // 涨跌
+    upColor: isDark ? '#10b981' : '#059669',
+    downColor: isDark ? '#ef4444' : '#dc2626',
+    // K线背景
+    klineBg: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(248, 249, 251, 0.95)',
+    klineText: isDark ? '#94a3b8' : '#475569',
+    klineGrid: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(30, 41, 59, 0.1)',
+    // 标签背景
+    tagBg: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(30, 41, 59, 0.08)',
+    // 音量条
+    volumeFill: isDark ? 'rgba(100, 116, 139, 0.3)' : 'rgba(100, 116, 139, 0.2)',
+    // tooltip
+    tooltipBg: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
+    tooltipBorder: isDark ? 'rgba(51, 65, 85, 0.8)' : 'rgba(30, 41, 59, 0.15)',
+    // 价格线
+    priceLine: isDark ? '#06b6d4' : '#d97706',
+  };
+}
+
+// K线图专用颜色（用于 createChart options）
+function getKlineColors() {
+  const root = document.documentElement;
+  const isDark = root.getAttribute('data-theme') !== 'light';
+  return {
+    layoutBg: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(248, 249, 251, 0.95)',
+    textColor: isDark ? '#94a3b8' : '#475569',
+    gridColor: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(30, 41, 59, 0.1)',
+    upColor: '#10b981',
+    downColor: '#ef4444',
+    borderUpColor: '#10b981',
+    borderDownColor: '#ef4444',
+    wickUpColor: '#10b981',
+    wickDownColor: '#ef4444',
+  };
+}
+
 const BROKER_SYMBOLS: Record<string, string[]> = {
   okx: ['BTC-USDT', 'ETH-USDT'],
   guojin: ['600000.SH', '000001.SZ'],
@@ -33,6 +84,15 @@ export default function Market() {
   const [timeRange, setTimeRange] = useState<number>(60);
   const { broker } = useBrokerStore();
   const [subscribed, setSubscribed] = useState(false);
+
+  // 图表颜色（随主题动态更新）
+  const [chartColors, setChartColors] = useState(getChartColors);
+  useEffect(() => {
+    setChartColors(getChartColors);
+    const observer = new MutationObserver(() => setChartColors(getChartColors));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
 
   // K线相关状态
   const [klineInterval, setKlineInterval] = useState('1H');
@@ -105,25 +165,26 @@ export default function Market() {
     try {
       // 懒初始化图表：仅在容器可见且图表尚未创建时创建
       if (chartContainerRef.current && !chartRef.current) {
+        const kc = getKlineColors();
         const chart = createChart(chartContainerRef.current, {
           layout: {
-            background: { color: 'rgba(15, 23, 42, 0.8)' },
-            textColor: '#94a3b8',
+            background: { color: kc.layoutBg },
+            textColor: kc.textColor,
           },
           grid: {
-            vertLines: { color: 'rgba(51, 65, 85, 0.3)' },
-            horzLines: { color: 'rgba(51, 65, 85, 0.3)' },
+            vertLines: { color: kc.gridColor },
+            horzLines: { color: kc.gridColor },
           },
           width: chartContainerRef.current.clientWidth,
           height: 400,
         });
         const candlestickSeries = chart.addSeries(CandlestickSeries, {
-          upColor: '#10b981',
-          downColor: '#ef4444',
-          borderUpColor: '#10b981',
-          borderDownColor: '#ef4444',
-          wickUpColor: '#10b981',
-          wickDownColor: '#ef4444',
+          upColor: kc.upColor,
+          downColor: kc.downColor,
+          borderUpColor: kc.borderUpColor,
+          borderDownColor: kc.borderDownColor,
+          wickUpColor: kc.wickUpColor,
+          wickDownColor: kc.wickDownColor,
         });
         chartRef.current = chart;
         candlestickSeriesRef.current = candlestickSeries;
@@ -163,13 +224,26 @@ export default function Market() {
       }
     };
     window.addEventListener('resize', handleResize);
+
+    // 监听主题变化，重新创建 K 线图（图表库不支持 CSS 变量动态更新）
+    const observer = new MutationObserver(() => {
+      // 销毁旧图表，下次 loadKlineData 时会重建
+      chartRef.current?.remove();
+      chartRef.current = null;
+      candlestickSeriesRef.current = null;
+      // 触发重新加载数据
+      loadKlineData();
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
     return () => {
       window.removeEventListener('resize', handleResize);
       chartRef.current?.remove();
       chartRef.current = null;
       candlestickSeriesRef.current = null;
+      observer.disconnect();
     };
-  }, []);
+  }, [loadKlineData]);
 
   const columns = [
     {
@@ -196,7 +270,7 @@ export default function Market() {
             fontFamily: 'var(--font-mono)',
             fontWeight: 700,
             fontSize: 16,
-            color: isUp ? '#10b981' : isDown ? '#ef4444' : 'var(--text-primary)',
+            color: isUp ? chartColors.upColor : isDown ? chartColors.downColor : 'var(--text-primary)',
           }}>
             {price?.toFixed(2) || '—'}
           </span>
@@ -218,7 +292,7 @@ export default function Market() {
             fontFamily: 'var(--font-mono)',
             fontWeight: 600,
             fontSize: 13,
-            color: isUp ? '#10b981' : isDown ? '#ef4444' : 'var(--text-muted)',
+            color: isUp ? chartColors.upColor : isDown ? chartColors.downColor : 'var(--text-muted)',
           }}>
             {isUp ? '+' : ''}{change.toFixed(2)}%
           </span>
@@ -372,8 +446,8 @@ export default function Market() {
 
                           return (
                             <div key={symbol} style={{
-                              background: 'rgba(15, 23, 42, 0.6)',
-                              border: '1px solid rgba(51, 65, 85, 0.5)',
+                              background: chartColors.containerBg,
+                              border: `1px solid ${chartColors.containerBorder}`,
                               borderRadius: 8,
                               padding: '16px 18px',
                               backdropFilter: 'blur(8px)',
@@ -388,7 +462,7 @@ export default function Market() {
                                   fontFamily: 'var(--font-mono)',
                                   fontWeight: 700,
                                   fontSize: 15,
-                                  color: '#e2e8f0',
+                                  color: chartColors.textPrimary,
                                   letterSpacing: '0.02em',
                                 }}>
                                   {symbol}
@@ -398,7 +472,7 @@ export default function Market() {
                                     fontFamily: 'var(--font-mono)',
                                     fontWeight: 700,
                                     fontSize: 18,
-                                    color: isUp ? '#10b981' : isDown ? '#ef4444' : '#94a3b8',
+                                    color: isUp ? chartColors.upColor : isDown ? chartColors.downColor : chartColors.textSecondary,
                                   }}>
                                     {currentTick.last_price.toFixed(2)}
                                   </span>
@@ -406,7 +480,7 @@ export default function Market() {
                                     fontFamily: 'var(--font-mono)',
                                     fontWeight: 600,
                                     fontSize: 12,
-                                    color: isUp ? '#10b981' : isDown ? '#ef4444' : '#64748b',
+                                    color: isUp ? chartColors.upColor : isDown ? chartColors.downColor : chartColors.textMuted,
                                   }}>
                                     {isUp ? '+' : ''}{change.toFixed(2)}%
                                   </span>
@@ -414,44 +488,44 @@ export default function Market() {
                               </div>
                               <ResponsiveContainer width="100%" height={180}>
                                 <ComposedChart data={displayData}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(51, 65, 85, 0.3)" />
+                                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.gridColor} />
                                   <XAxis
                                     dataKey="time"
-                                    stroke="#64748b"
+                                    stroke={chartColors.textMuted}
                                     style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
-                                    tick={{ fill: '#64748b' }}
+                                    tick={{ fill: chartColors.textMuted }}
                                   />
                                   <YAxis
                                     yAxisId="price"
-                                    stroke="#64748b"
+                                    stroke={chartColors.textMuted}
                                     style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
                                     domain={['dataMin - 0.5', 'dataMax + 0.5']}
-                                    tick={{ fill: '#64748b' }}
+                                    tick={{ fill: chartColors.textMuted }}
                                   />
                                   <YAxis
                                     yAxisId="volume"
                                     orientation="right"
-                                    stroke="#64748b"
+                                    stroke={chartColors.textMuted}
                                     style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
-                                    tick={{ fill: '#64748b' }}
+                                    tick={{ fill: chartColors.textMuted }}
                                   />
                                   <Tooltip
                                     contentStyle={{
-                                      background: 'rgba(15, 23, 42, 0.95)',
-                                      border: '1px solid rgba(51, 65, 85, 0.8)',
+                                      background: chartColors.tooltipBg,
+                                      border: `1px solid ${chartColors.tooltipBorder}`,
                                       borderRadius: 6,
                                       fontSize: 11,
                                       fontFamily: 'var(--font-mono)',
                                       padding: '8px 10px',
                                     }}
-                                    labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
+                                    labelStyle={{ color: chartColors.textSecondary, marginBottom: 4 }}
                                   />
-                                  <Bar yAxisId="volume" dataKey="volume" fill="rgba(100, 116, 139, 0.3)" />
+                                  <Bar yAxisId="volume" dataKey="volume" fill={chartColors.volumeFill} />
                                   <Line
                                     yAxisId="price"
                                     type="monotone"
                                     dataKey="price"
-                                    stroke={isUp ? '#10b981' : isDown ? '#ef4444' : '#06b6d4'}
+                                    stroke={isUp ? chartColors.upColor : isDown ? chartColors.downColor : chartColors.priceLine}
                                     strokeWidth={2}
                                     dot={false}
                                     animationDuration={300}
@@ -476,8 +550,8 @@ export default function Market() {
               ),
               children: (
                 <div style={{
-                  background: 'rgba(15, 23, 42, 0.6)',
-                  border: '1px solid rgba(51, 65, 85, 0.5)',
+                  background: chartColors.containerBg,
+                  border: `1px solid ${chartColors.containerBorder}`,
                   borderRadius: 8,
                   padding: 16,
                 }}>
@@ -488,10 +562,10 @@ export default function Market() {
                     gap: 16,
                     marginBottom: 16,
                     paddingBottom: 16,
-                    borderBottom: '1px solid rgba(51, 65, 85, 0.3)',
+                    borderBottom: `1px solid ${chartColors.gridColor}`,
                     flexWrap: 'wrap',
                   }}>
-                    <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>交易对:</span>
+                    <span style={{ fontSize: 12, color: chartColors.textSecondary, fontWeight: 600 }}>交易对:</span>
                     <div className="hide-mobile">
                       <Tabs
                         size="small"
@@ -516,7 +590,7 @@ export default function Market() {
                       ]}
                     />
 
-                    <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginLeft: 8 }}>周期:</span>
+                    <span style={{ fontSize: 12, color: chartColors.textSecondary, fontWeight: 600, marginLeft: 8 }}>周期:</span>
                     <div className="hide-mobile">
                       <Tabs
                         size="small"
@@ -568,15 +642,15 @@ export default function Market() {
 
       {/* Data Table */}
       <div className="animate-in stagger-2" style={{
-        background: 'rgba(15, 23, 42, 0.6)',
-        border: '1px solid rgba(51, 65, 85, 0.5)',
+        background: chartColors.containerBg,
+        border: `1px solid ${chartColors.containerBorder}`,
         borderRadius: 8,
         overflow: 'hidden',
         backdropFilter: 'blur(8px)',
       }}>
         <div style={{
           padding: '12px 20px',
-          borderBottom: '1px solid rgba(51, 65, 85, 0.5)',
+          borderBottom: `1px solid ${chartColors.containerBorder}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -584,7 +658,7 @@ export default function Market() {
           <span style={{
             fontSize: 12,
             fontWeight: 700,
-            color: '#94a3b8',
+            color: chartColors.textSecondary,
             fontFamily: 'var(--font-mono)',
             letterSpacing: '0.05em',
             textTransform: 'uppercase',
@@ -594,9 +668,9 @@ export default function Market() {
           <span style={{
             fontSize: 10,
             fontFamily: 'var(--font-mono)',
-            color: '#64748b',
+            color: chartColors.textMuted,
             padding: '2px 8px',
-            background: 'rgba(51, 65, 85, 0.4)',
+            background: chartColors.tagBg,
             borderRadius: 4,
           }}>
             {Object.keys(ticks).length} 标的
@@ -613,7 +687,7 @@ export default function Market() {
               <div style={{
                 padding: '40px 0',
                 textAlign: 'center',
-                color: '#64748b',
+                color: chartColors.textMuted,
               }}>
                 <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.4 }}>📡</div>
                 <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)' }}>点击"开始订阅"接收实时数据</div>

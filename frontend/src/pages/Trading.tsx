@@ -418,8 +418,8 @@ export default function Trading() {
                         fontSize: 14,
                         letterSpacing: '0.5px',
                         background: side === 'buy'
-                          ? 'linear-gradient(135deg, #34d399, #059669)'
-                          : 'linear-gradient(135deg, #f87171, #dc2626)',
+                          ? 'linear-gradient(135deg, var(--gain), #059669)'
+                          : 'linear-gradient(135deg, var(--loss), #dc2626)',
                         border: 'none',
                         boxShadow: side === 'buy'
                           ? '0 4px 16px rgba(52, 211, 153, 0.3)'

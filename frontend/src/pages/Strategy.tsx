@@ -139,7 +139,7 @@ const CARD_STYLE: React.CSSProperties = {
 };
 
 const METRIC_CARD_STYLE: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.03)',
+  background: 'var(--bg-surface)',
   border: '1px solid var(--border-subtle)',
   borderRadius: 'var(--radius-sm)',
   padding: '16px 20px',
