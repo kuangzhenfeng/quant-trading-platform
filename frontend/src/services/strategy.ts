@@ -1,5 +1,5 @@
 import request from './request';
-import type { SignalsResponse, StrategyPerformance } from '../types/api';
+import type { SignalsResponse, StrategyPerformance, StrategySignal } from '../types/api';
 
 export interface CreateStrategyRequest {
   strategy_type: string;
@@ -48,6 +48,14 @@ export const strategyApi = {
     return data as SignalsResponse;
   },
 
+  /** 批量获取信号（用于K线图信号叠加） */
+  getSignalsBySymbol: async (symbol: string, strategyIds: string[]) => {
+    const { data } = await request.get('/strategy/signals', {
+      params: { symbol, strategy_ids: strategyIds.join(',') },
+    });
+    return data as { signals: Record<string, StrategySignal[]> };
+  },
+
   getPerformance: async (id: string) => {
     const { data } = await request.get(`/strategy/${id}/performance`);
     return data as StrategyPerformance;
@@ -55,6 +63,16 @@ export const strategyApi = {
 
   deleteStrategy: async (id: string) => {
     const { data } = await request.delete(`/strategy/${id}`);
+    return data;
+  },
+
+  createAndStartAll: async (broker: string) => {
+    const { data } = await request.post('/strategy/create-and-start-all', { broker });
+    return data;
+  },
+
+  deleteAll: async () => {
+    const { data } = await request.post('/strategy/delete-all');
     return data;
   },
 };

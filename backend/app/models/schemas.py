@@ -105,3 +105,12 @@ class BacktestResult(BaseModel):
     max_drawdown: float
     win_rate: float
     total_trades: int
+
+
+class ErrorResponse(BaseModel):
+    """统一错误响应格式"""
+    error_code: str  # 错误码，如 VALIDATION_ERROR, NOT_FOUND, BROKER_ERROR
+    message: str  # 对用户友好的错误描述
+    detail: str | None = None  # 详细技术信息（仅开发环境显示）
+    path: str  # 请求路径
+    timestamp: str  # 错误发生时间

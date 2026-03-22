@@ -11,6 +11,7 @@ import Account from './pages/Account';
 import Users from './pages/Users';
 import Logs from './pages/Logs';
 import Backtest from './pages/Backtest';
+import About from './pages/About';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Setup from './pages/Setup';
@@ -152,6 +153,7 @@ export default function App() {
               <Route path="settings" element={<Settings />} />
               <Route path="logs" element={<Logs />} />
               <Route path="backtest" element={<Backtest />} />
+              <Route path="about" element={<About />} />
             </Route>
           </Routes>
         </AntApp>

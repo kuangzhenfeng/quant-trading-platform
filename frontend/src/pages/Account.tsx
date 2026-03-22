@@ -83,8 +83,8 @@ export default function Account() {
       setImportText('');
       fetchAccounts();
     } catch (e) {
-      const error = e as { response?: { data?: { detail?: string } }; message?: string };
-      const errorMsg = error.response?.data?.detail || error.message || '未知错误';
+      const error = e as { response?: { data?: { message?: string; detail?: string } }; message?: string };
+      const errorMsg = error.response?.data?.message || error.response?.data?.detail || error.message || '未知错误';
       message.error('导入失败：' + errorMsg);
     }
   };

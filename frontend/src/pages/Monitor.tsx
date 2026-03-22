@@ -221,6 +221,20 @@ export default function Monitor() {
           columns={positionColumns}
           rowKey="symbol"
           pagination={false}
+          locale={{
+            emptyText: (
+              <Empty
+                description={
+                  <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+                    暂无持仓记录<br/>
+                    <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                      前往「策略」页面创建策略，策略运行后将自动下单
+                    </span>
+                  </span>
+                }
+              />
+            ),
+          }}
         />
       </Card>
     </>

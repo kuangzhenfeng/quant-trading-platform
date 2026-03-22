@@ -5,7 +5,12 @@ import type { Dayjs } from 'dayjs';
 export interface ApiError {
   response?: {
     data?: {
+      /** 后端统一错误响应的 message 字段 */
+      message?: string;
+      /** 原始 HTTP 异常的 detail 字段 */
       detail?: string;
+      /** 错误码 */
+      error_code?: string;
     };
   };
 }

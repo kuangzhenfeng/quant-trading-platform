@@ -8,7 +8,7 @@ import traceback
 from app.core.config import settings, TradingMode
 from app.core.init_data import init_data_from_env
 from app.core.init_db import init_database, migrate_from_json
-from app.api import websocket, market, trading, strategy, monitor, account, logs, backtest, auth, users, system
+from app.api import websocket, market, trading, strategy, monitor, account, logs, backtest, auth, users, system, about
 from app.services.market import market_service
 from app.services.trading import trading_service
 from app.services.strategy import strategy_engine
@@ -112,18 +112,118 @@ app.add_middleware(
 app.add_middleware(AuthMiddleware)
 
 
+from app.models.schemas import ErrorResponse
+
+
+def build_error_response(
+    error_code: str,
+    message: str,
+    path: str,
+    detail: str | None = None,
+) -> dict:
+    """构建统一错误响应"""
+    from datetime import datetime, timezone
+    return ErrorResponse(
+        error_code=error_code,
+        message=message,
+        detail=detail if settings.DEBUG else None,
+        path=path,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+    ).model_dump()
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """全局异常处理器，确保 500 错误也带正确的 CORS 头"""
+    """全局异常处理器，提供结构化的错误信息"""
     from app.services.log import log_service
     from app.models.schemas import LogLevel
+    from app.adapters.exceptions import BrokerAPIError, BrokerConnectionError
 
-    log_service.log(LogLevel.ERROR, "system", f"未捕获异常: {request.url.path} - {exc}\n{traceback.format_exc()}")
+    path = str(request.url.path)
+    exc_type = type(exc).__name__
+    trace = traceback.format_exc()
+
+    # 根据异常类型生成友好的错误码和消息
+    if isinstance(exc, BrokerAPIError):
+        error_code = "BROKER_API_ERROR"
+        message = str(exc) or "券商API业务错误"
+        log_service.log(LogLevel.ERROR, "system", f"[{error_code}] {path} - {exc}\n{trace}")
+    elif isinstance(exc, BrokerConnectionError):
+        error_code = "BROKER_CONNECTION_ERROR"
+        message = f"券商连接失败，请检查网络或配置"
+        log_service.log(LogLevel.ERROR, "system", f"[{error_code}] {path} - {exc}\n{trace}")
+    elif isinstance(exc, ValueError):
+        error_code = "VALIDATION_ERROR"
+        message = f"参数错误: {str(exc)}"
+        log_service.log(LogLevel.WARNING, "system", f"[{error_code}] {path} - {exc}\n{trace}")
+    elif isinstance(exc, FileNotFoundError):
+        error_code = "FILE_NOT_FOUND"
+        message = f"文件未找到: {str(exc)}"
+        log_service.log(LogLevel.WARNING, "system", f"[{error_code}] {path} - {exc}\n{trace}")
+    elif isinstance(exc, TimeoutError):
+        error_code = "TIMEOUT_ERROR"
+        message = "请求超时，请稍后重试"
+        log_service.log(LogLevel.ERROR, "system", f"[{error_code}] {path} - {exc}\n{trace}")
+    else:
+        error_code = "INTERNAL_ERROR"
+        message = f"服务器内部错误 [{exc_type}]，请联系管理员"
+        log_service.log(LogLevel.ERROR, "system", f"[{error_code}] {path} - {exc_type}: {exc}\n{trace}")
 
     return JSONResponse(
         status_code=500,
-        content={"detail": "内部服务器错误"},
+        content=build_error_response(error_code, message, path, trace),
     )
+
+
+from fastapi import HTTPException
+from fastapi.exceptions import RequestValidationError
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """HTTP 异常处理器，统一错误格式"""
+    status_map = {
+        400: ("BAD_REQUEST", "请求错误"),
+        401: ("UNAUTHORIZED", "未授权，请先登录"),
+        403: ("FORBIDDEN", "权限不足"),
+        404: ("NOT_FOUND", "资源不存在"),
+        405: ("METHOD_NOT_ALLOWED", "不支持的请求方法"),
+        422: ("VALIDATION_ERROR", "请求参数校验失败"),
+        429: ("RATE_LIMIT", "请求过于频繁，请稍后重试"),
+        501: ("NOT_IMPLEMENTED", "功能暂未实现"),
+    }
+    error_code, default_msg = status_map.get(exc.status_code, ("HTTP_ERROR", "请求处理失败"))
+    # 优先使用 exc.detail（具体业务错误信息），其次才是默认消息
+    error_message = str(exc.detail) if exc.detail else default_msg
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=build_error_response(
+            error_code=error_code,
+            message=error_message,
+            path=str(request.url.path),
+            # HTTP 异常的 detail 即为错误信息，无需额外 detail
+        ),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """请求参数校验异常"""
+    errors = exc.errors()
+    messages = []
+    for err in errors:
+        loc = " → ".join(str(l) for l in err["loc"])
+        messages.append(f"{loc}: {err['msg']}")
+    return JSONResponse(
+        status_code=422,
+        content=build_error_response(
+            "VALIDATION_ERROR",
+            "请求参数格式错误",
+            str(request.url.path),
+            "\n".join(messages),
+        ),
+    )
+
 
 app.include_router(auth.router)
 app.include_router(users.router)
@@ -136,6 +236,7 @@ app.include_router(monitor.router)
 app.include_router(account.router)
 app.include_router(logs.router)
 app.include_router(backtest.router)
+app.include_router(about.router)
 
 @app.get("/health")
 async def health_check():

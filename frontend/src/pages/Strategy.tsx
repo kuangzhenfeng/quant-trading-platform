@@ -26,6 +26,7 @@ import {
   InfoCircleOutlined,
   ExpandOutlined,
   CompressOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { strategyApi } from '../services/strategy';
 import './Monitor.css';
@@ -171,6 +172,10 @@ export default function Strategy() {
   // Loading state
   const [loading, setLoading] = useState(false);
 
+  // 批量操作 loading
+  const [batchStartLoading, setBatchStartLoading] = useState(false);
+  const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
+
   // Strategies table
   const [strategies, setStrategies] = useState<Strategy[]>([]);
 
@@ -234,7 +239,7 @@ export default function Strategy() {
       message.success('策略创建成功');
       fetchStrategies();
     } catch (error: unknown) {
-      message.error((error as ApiError).response?.data?.detail || '创建失败');
+      message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '创建失败');
     } finally {
       setLoading(false);
     }
@@ -247,7 +252,7 @@ export default function Strategy() {
       message.success('策略已启动');
       fetchStrategies();
     } catch (error: unknown) {
-      message.error((error as ApiError).response?.data?.detail || '启动失败');
+      message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '启动失败');
     }
   };
 
@@ -258,7 +263,7 @@ export default function Strategy() {
       message.success('策略已停止');
       fetchStrategies();
     } catch (error: unknown) {
-      message.error((error as ApiError).response?.data?.detail || '停止失败');
+      message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '停止失败');
     }
   };
 
@@ -269,7 +274,7 @@ export default function Strategy() {
       setEditingStrategy({ id, params: detail.params });
       setEditModalVisible(true);
     } catch (error: unknown) {
-      message.error((error as ApiError).response?.data?.detail || '获取策略详情失败');
+      message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '获取策略详情失败');
     }
   };
 
@@ -290,7 +295,7 @@ export default function Strategy() {
       setEditingStrategy(null);
       fetchStrategies();
     } catch (error: unknown) {
-      message.error((error as ApiError).response?.data?.detail || '更新失败');
+      message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '更新失败');
     }
   };
 
@@ -301,7 +306,7 @@ export default function Strategy() {
       setLogs(data.logs);
       setLogModalVisible(true);
     } catch (error: unknown) {
-      message.error((error as ApiError).response?.data?.detail || '获取日志失败');
+      message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '获取日志失败');
     }
   };
 
@@ -332,8 +337,53 @@ export default function Strategy() {
       setSelectedStrategy(null);
       fetchStrategies();
     } catch (error: unknown) {
-      message.error((error as ApiError).response?.data?.detail || '删除失败');
+      message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '删除失败');
     }
+  };
+
+  // ─── handleBatchCreateAndStart ───────────────────────────────────────────
+  const handleBatchCreateAndStart = async () => {
+    setBatchStartLoading(true);
+    try {
+      const result = await strategyApi.createAndStartAll(broker) as { created: number; skipped: number; errors: string[] };
+      if (result.errors.length > 0) {
+        message.warning(`创建完成：成功 ${result.created}，跳过 ${result.skipped}，失败 ${result.errors.length} 个`);
+      } else {
+        message.success(`一键创建并启用完成：成功 ${result.created}，跳过 ${result.skipped}`);
+      }
+      fetchStrategies();
+    } catch (error: unknown) {
+      message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '批量创建失败');
+    } finally {
+      setBatchStartLoading(false);
+    }
+  };
+
+  // ─── handleBatchDeleteAll ─────────────────────────────────────────────────
+  const handleBatchDeleteAll = () => {
+    Modal.confirm({
+      title: '确认删除全部策略',
+      content: '确定要删除所有策略吗？此操作不可恢复。',
+      okText: '确认删除',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setBatchDeleteLoading(true);
+        try {
+          const result = await strategyApi.deleteAll() as { deleted: number; errors: string[] };
+          if (result.errors.length > 0) {
+            message.warning(`删除完成：成功 ${result.deleted}，失败 ${result.errors.length} 个`);
+          } else {
+            message.success(`一键删除完成：共删除 ${result.deleted} 个策略`);
+          }
+          fetchStrategies();
+        } catch (error: unknown) {
+          message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '批量删除失败');
+        } finally {
+          setBatchDeleteLoading(false);
+        }
+      },
+    });
   };
 
   // ─── fetchStrategies ──────────────────────────────────────────────────────
@@ -851,6 +901,36 @@ export default function Strategy() {
         <div style={{ ...SECTION_HEADER_STYLE, marginBottom: 16 }}>
           <UnorderedListOutlined style={{ color: 'var(--cyan-400)', fontSize: 15 }} />
           策略状态
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <Tooltip title="为全部16种策略类型×2个交易对创建并启用策略">
+              <Button
+                type="primary"
+                size="small"
+                icon={<ThunderboltOutlined />}
+                loading={batchStartLoading}
+                onClick={handleBatchCreateAndStart}
+                style={{
+                  background: 'rgba(52, 211, 153, 0.15)',
+                  borderColor: 'rgba(52, 211, 153, 0.4)',
+                  color: 'var(--gain)',
+                  fontWeight: 600,
+                }}
+              >
+                一键创建并启用
+              </Button>
+            </Tooltip>
+            <Tooltip title="删除全部策略">
+              <Button
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                loading={batchDeleteLoading}
+                onClick={handleBatchDeleteAll}
+              >
+                一键删除全部
+              </Button>
+            </Tooltip>
+          </div>
         </div>
         <Table
           dataSource={strategies}

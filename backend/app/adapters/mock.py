@@ -12,6 +12,9 @@ class MockAdapter(BrokerAdapter):
         self.orders: Dict[str, OrderData] = {}
         self.positions: Dict[str, PositionData] = {}
         self.balance = 100000.0
+        self.base_volumes: Dict[str, int] = {}
+        self.seed = hash('') % 1000
+        random.seed(self.seed)
 
     async def connect(self) -> bool:
         self.connected = True
@@ -42,11 +45,15 @@ class MockAdapter(BrokerAdapter):
         seed = hash(symbol) % 1000
         random.seed(seed)
         price = base + random.uniform(-base * 0.02, base * 0.02)
+        # 成交量累加，而不是每次随机生成
+        if symbol not in self.base_volumes:
+            self.base_volumes[symbol] = random.randint(10000, 50000)
+        self.base_volumes[symbol] += random.randint(50, 500)
         return TickData(
             broker="mock",
             symbol=symbol,
             last_price=price,
-            volume=random.randint(1000, 10000),
+            volume=self.base_volumes[symbol],
             timestamp=datetime.now()
         )
 

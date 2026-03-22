@@ -33,6 +33,13 @@ class StrategyEngine:
         self.strategies[strategy_id] = (strategy, ctx, True)
         ctx.log(f"策略 {strategy.name} 已启动")
 
+        # 订阅策略所需的行情（从 strategy_id 解析 symbol，格式: {type}_{broker}_{symbol}）
+        if self.market_service:
+            parts = strategy_id.rsplit("_", 2)
+            if len(parts) >= 3:
+                _, broker, symbol = parts[0], parts[1], parts[2]
+                await self.market_service.subscribe_strategy(strategy_id, broker, symbol)
+
         # 更新数据库状态
         from sqlalchemy import update
         from app.models.db_models import DBStrategyConfig
@@ -57,6 +64,10 @@ class StrategyEngine:
         strategy, ctx, _ = self.strategies[strategy_id]
         self.strategies[strategy_id] = (strategy, ctx, False)
         ctx.log(f"策略 {strategy.name} 已停止")
+
+        # 取消行情订阅
+        if self.market_service:
+            self.market_service.unsubscribe_strategy(strategy_id)
 
         # 更新数据库状态
         from sqlalchemy import update
@@ -162,6 +173,9 @@ class StrategyEngine:
                         # 恢复运行状态
                         running = config.active
                         self.strategies[config.strategy_id] = (strategy, ctx, running)
+                        # 如果策略是激活状态，恢复行情订阅
+                        if running and self.market_service and config.params.get("symbol"):
+                            await self.market_service.subscribe_strategy(config.strategy_id, config.broker, config.params["symbol"])
                         status = "已启动" if running else "已恢复"
                         print(f"[RESTORE] 恢复策略: {config.strategy_id} ({status})")
                 except Exception as e:

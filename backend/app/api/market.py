@@ -49,7 +49,6 @@ async def get_klines(
     adapter = market_service.adapters.get(broker)
 
     # 如果指定broker的adapter不存在或未连接，根据交易模式创建
-    use_mock = False
     if not adapter or not adapter.connected:
         try:
             if settings.trading_mode == TradingMode.MOCK:
@@ -65,12 +64,8 @@ async def get_klines(
                 market_service.register_adapter(broker, adapter)
                 log_service.log(LogLevel.INFO, "market", f"K线数据使用 {mode.value} 模式: {broker}")
         except Exception as e:
-            log_service.log(LogLevel.WARNING, "market", f"创建 {broker} K线 adapter失败: {e}, 降级使用 Mock")
-            # 降级使用mock
-            adapter = MockAdapter({})
-            await adapter.connect()
-            market_service.register_adapter(broker, adapter)
-            log_service.log(LogLevel.INFO, "market", f"K线数据降级使用 Mock 模式: {broker}")
+            log_service.log(LogLevel.ERROR, "market", f"创建 {broker} K线 adapter失败: {e}")
+            raise HTTPException(status_code=500, detail=f"连接券商失败: {e}")
 
     # 计算时间范围
     end_time = datetime.now()
@@ -84,12 +79,15 @@ async def get_klines(
         log_service.log(LogLevel.WARNING, "market", f"{broker} 券商不支持K线数据: {symbol}")
         raise HTTPException(status_code=501, detail=f"{broker} 券商不支持K线数据")
     except Exception as e:
-        # 网络等原因导致K线获取失败，降级使用 Mock 数据
-        log_service.log(LogLevel.WARNING, "market", f"获取 {broker} K线失败: {e}, 降级使用 Mock 数据")
-        mock_adapter = MockAdapter({})
-        await mock_adapter.connect()
-        klines = await mock_adapter.get_klines(symbol, interval, start_time, end_time, limit)
-        source = "mock"
+        # Paper/Live 模式下 K 线获取失败时不降级，记录错误并返回空数据
+        log_service.log(LogLevel.ERROR, "market", f"获取 {broker} K线失败: {e}")
+        if settings.trading_mode == TradingMode.MOCK:
+            mock_adapter = MockAdapter({})
+            await mock_adapter.connect()
+            klines = await mock_adapter.get_klines(symbol, interval, start_time, end_time, limit)
+            source = "mock"
+        else:
+            raise HTTPException(status_code=500, detail=f"获取K线失败: {e}")
 
     return {
         "symbol": symbol,

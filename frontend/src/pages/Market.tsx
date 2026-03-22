@@ -1,45 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Button, Table, Segmented, Tabs, Select } from 'antd';
-import { ThunderboltOutlined, WifiOutlined, DisconnectOutlined, ClockCircleOutlined, LineChartOutlined, BarChartOutlined } from '@ant-design/icons';
-import { Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ComposedChart, Bar, CartesianGrid } from 'recharts';
-import { createChart, type IChartApi, type ISeriesApi, type CandlestickData, type Time, CandlestickSeries } from 'lightweight-charts';
-import { useMarketWebSocket } from '../hooks/useMarketWebSocket';
+import { Button, Tabs, Select, Switch } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
+import { createChart, type IChartApi, type ISeriesApi, type CandlestickData, type Time, CandlestickSeries, createSeriesMarkers, type ISeriesMarkersPluginApi } from 'lightweight-charts';
 import { useBrokerStore } from '../stores/brokerStore';
 import { marketApi } from '../services/market';
-
-// 获取亮色/暗色主题对应的图表颜色（图表库不支持CSS变量，需要实际颜色值）
-function getChartColors() {
-  const root = document.documentElement;
-  const isDark = root.getAttribute('data-theme') !== 'light';
-
-  return {
-    // 容器背景
-    containerBg: isDark ? 'rgba(22, 24, 31, 0.85)' : 'rgba(255, 255, 255, 0.95)',
-    containerBorder: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(30, 41, 59, 0.15)',
-    // 文字
-    textPrimary: isDark ? '#e2e8f0' : '#1e293b',
-    textSecondary: isDark ? '#94a3b8' : '#475569',
-    textMuted: isDark ? '#64748b' : '#94a3b8',
-    // 网格
-    gridColor: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(30, 41, 59, 0.1)',
-    // 涨跌
-    upColor: isDark ? '#10b981' : '#059669',
-    downColor: isDark ? '#ef4444' : '#dc2626',
-    // K线背景
-    klineBg: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(248, 249, 251, 0.95)',
-    klineText: isDark ? '#94a3b8' : '#475569',
-    klineGrid: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(30, 41, 59, 0.1)',
-    // 标签背景
-    tagBg: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(30, 41, 59, 0.08)',
-    // 音量条
-    volumeFill: isDark ? 'rgba(100, 116, 139, 0.3)' : 'rgba(100, 116, 139, 0.2)',
-    // tooltip
-    tooltipBg: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
-    tooltipBorder: isDark ? 'rgba(51, 65, 85, 0.8)' : 'rgba(30, 41, 59, 0.15)',
-    // 价格线
-    priceLine: isDark ? '#06b6d4' : '#d97706',
-  };
-}
+import { useStrategyMarkers } from '../hooks/useStrategyMarkers';
+import type { StrategySignal } from '../types/api';
 
 // K线图专用颜色（用于 createChart options）
 function getKlineColors() {
@@ -49,6 +15,9 @@ function getKlineColors() {
     layoutBg: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(248, 249, 251, 0.95)',
     textColor: isDark ? '#94a3b8' : '#475569',
     gridColor: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(30, 41, 59, 0.1)',
+    containerBg: isDark ? 'rgba(22, 24, 31, 0.85)' : 'rgba(255, 255, 255, 0.95)',
+    containerBorder: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(30, 41, 59, 0.15)',
+    textSecondary: isDark ? '#94a3b8' : '#475569',
     upColor: '#10b981',
     downColor: '#ef4444',
     borderUpColor: '#10b981',
@@ -58,112 +27,47 @@ function getKlineColors() {
   };
 }
 
-const BROKER_SYMBOLS: Record<string, string[]> = {
-  okx: ['BTC-USDT', 'ETH-USDT'],
-  guojin: ['600000.SH', '000001.SZ'],
-  moomoo: ['AAPL', 'TSLA'],
-};
-
-interface TickData {
-  symbol: string;
-  last_price: number;
-  volume: number;
-  timestamp: string;
-}
-
-interface PricePoint {
-  time: string;
-  price: number;
-  volume: number;
-}
-
 export default function Market() {
-  const [ticks, setTicks] = useState<Record<string, TickData>>({});
-  const [priceHistory, setPriceHistory] = useState<Record<string, PricePoint[]>>({});
-  const [openPrices, setOpenPrices] = useState<Record<string, number>>({});
-  const [timeRange, setTimeRange] = useState<number>(60);
   const { broker } = useBrokerStore();
-  const [subscribed, setSubscribed] = useState(false);
+  const [klineInterval, setKlineInterval] = useState('1H');
+  const [klineSymbol, setKlineSymbol] = useState('BTC-USDT');
+  const [klineLoading, setKlineLoading] = useState(false);
+  const [chartColors, setChartColors] = useState(getKlineColors);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const [tooltipData, setTooltipData] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    signal: { strategy_id: string; side: string; price: number; quantity: number; timestamp: string; reason: string } | null;
+  }>({ visible: false, x: 0, y: 0, signal: null });
+  const tooltipContainerRef = useRef<HTMLDivElement>(null);
 
-  // 图表颜色（随主题动态更新）
-  const [chartColors, setChartColors] = useState(getChartColors);
+  // 信号标记 hook
+  const marker = useStrategyMarkers();
+
+  // 主题变化监听
   useEffect(() => {
-    setChartColors(getChartColors);
-    const observer = new MutationObserver(() => setChartColors(getChartColors));
+    setChartColors(getKlineColors);
+    const observer = new MutationObserver(() => setChartColors(getKlineColors));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     return () => observer.disconnect();
   }, []);
 
-  // K线相关状态
-  const [klineInterval, setKlineInterval] = useState('1H');
-  const [klineSymbol, setKlineSymbol] = useState('BTC-USDT');
-  const [klineLoading, setKlineLoading] = useState(false);
-  const [activeChartTab, setActiveChartTab] = useState('realtime');
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
-
-  const handleTick = useCallback((tick: TickData) => {
-    setTicks(prev => {
-      const existing = prev[tick.symbol];
-      return existing?.last_price === tick.last_price ? prev : { ...prev, [tick.symbol]: tick };
-    });
-    setOpenPrices(prev => {
-      if (!prev[tick.symbol]) {
-        return { ...prev, [tick.symbol]: tick.last_price };
-      }
-      return prev;
-    });
-    setPriceHistory(prev => {
-      const history = prev[tick.symbol] || [];
-      const newPoint = {
-        time: new Date(tick.timestamp).toLocaleTimeString('zh-CN', { hour12: false }),
-        price: tick.last_price,
-        volume: tick.volume
-      };
-      const updated = [...history, newPoint].slice(-300);
-      return { ...prev, [tick.symbol]: updated };
-    });
-  }, []);
-
-  const { subscribe, unsubscribe } = useMarketWebSocket('client-1', handleTick);
-
-  // 自动订阅逻辑
-  useEffect(() => {
-    const symbols = BROKER_SYMBOLS[broker] ?? ['BTC-USDT', 'ETH-USDT'];
-    const timer = setTimeout(() => {
-      subscribe(broker, symbols);
-      setSubscribed(true);
-    }, 100);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [broker, subscribe]);
-
-  const handleUnsubscribe = () => {
-    unsubscribe();
-    setSubscribed(false);
-    setTicks({});
-    setPriceHistory({});
-    setOpenPrices({});
-  };
-
-  const handleSubscribe = () => {
-    const symbols = broker === 'okx'
-      ? ['BTC-USDT', 'ETH-USDT']
-      : broker === 'guojin'
-      ? ['600000.SH', '000001.SZ']
-      : ['AAPL', 'TSLA'];
-
-    subscribe(broker, symbols);
-    setSubscribed(true);
-  };
+  // 用 ref 跟踪信号数据，避免 loadKlineData 依赖整个 marker hook
+  const signalsRef = useRef<Record<string, StrategySignal[]>>({});
+  const enabledRef = useRef(false);
+  const chartReadyRef = useRef(false);
+  enabledRef.current = marker.enabled;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  signalsRef.current = marker.signals;
 
   // 加载K线数据
   const loadKlineData = useCallback(async () => {
     setKlineLoading(true);
     try {
-      // 懒初始化图表：仅在容器可见且图表尚未创建时创建
       if (chartContainerRef.current && !chartRef.current) {
         const kc = getKlineColors();
         const chart = createChart(chartContainerRef.current, {
@@ -176,7 +80,7 @@ export default function Market() {
             horzLines: { color: kc.gridColor },
           },
           width: chartContainerRef.current.clientWidth,
-          height: 400,
+          height: 500,
         });
         const candlestickSeries = chart.addSeries(CandlestickSeries, {
           upColor: kc.upColor,
@@ -188,8 +92,52 @@ export default function Market() {
         });
         chartRef.current = chart;
         candlestickSeriesRef.current = candlestickSeries;
+        chartReadyRef.current = true;
+
+        // 创建 markers primitive
+        markersRef.current = createSeriesMarkers(candlestickSeries, []);
+
+        // 订阅十字线移动事件，用于 tooltip
+        chart.subscribeCrosshairMove((param) => {
+          if (!param.time || !candlestickSeriesRef.current) {
+            setTooltipData(prev => ({ ...prev, visible: false }));
+            return;
+          }
+          const bar = param.seriesData.get(candlestickSeriesRef.current) as CandlestickData<Time> | undefined;
+          if (!bar) {
+            setTooltipData(prev => ({ ...prev, visible: false }));
+            return;
+          }
+          // 在 signals 中查找匹配时间的信号（使用 ref 避免闭包问题）
+          const sigTime = (param.time as number) * 1000;
+          let found: StrategySignal | null = null;
+          if (enabledRef.current) {
+            for (const sList of Object.values(signalsRef.current)) {
+              for (const s of sList) {
+                const sTs = new Date(s.timestamp).getTime();
+                if (Math.abs(sTs - sigTime) < 3600000) { // 1小时内容差
+                  found = s;
+                  break;
+                }
+              }
+              if (found) break;
+            }
+          }
+          if (found && param.point) {
+            const rect = chartContainerRef.current?.getBoundingClientRect();
+            if (rect) {
+              setTooltipData({
+                visible: true,
+                x: param.point.x,
+                y: param.point.y,
+                signal: found,
+              });
+            }
+          } else {
+            setTooltipData(prev => ({ ...prev, visible: false }));
+          }
+        });
       }
-      // 确保图表在数据加载前完成尺寸调整
       if (chartRef.current && chartContainerRef.current) {
         chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
       }
@@ -204,6 +152,12 @@ export default function Market() {
         }));
         candlestickSeriesRef.current.setData(candleData);
         chartRef.current?.timeScale().fitContent();
+
+        // 信号开启时初始化信号加载
+        if (marker.enabled) {
+          marker.updateKlineSymbol(klineSymbol);
+          await marker.initialize(klineSymbol, marker.selectedStrategies);
+        }
       }
     } catch (error) {
       console.error('加载K线数据失败:', error);
@@ -212,9 +166,37 @@ export default function Market() {
     }
   }, [klineSymbol, broker, klineInterval]);
 
+  // 挂载时加载K线数据
   useEffect(() => {
     loadKlineData();
-  }, [loadKlineData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 信号开关变化时，加载或清理信号
+  useEffect(() => {
+    if (marker.enabled) {
+      marker.initialize(klineSymbol, marker.selectedStrategies);
+    } else {
+      marker.cleanup();
+      setSignalsEmpty();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marker.enabled]);
+
+  // 信号列表或筛选变化时，更新图表上的 markers
+  useEffect(() => {
+    if (!chartReadyRef.current || !marker.enabled || !markersRef.current) return;
+    const kc = chartColors;
+    const markers = marker.getMarkers(kc.upColor, kc.downColor);
+    markersRef.current.setMarkers(markers as any);
+  }, [marker.signals, marker.selectedStrategies, marker.sideFilter, marker.enabled, chartColors]);
+
+  // 设置空 markers
+  const setSignalsEmpty = () => {
+    if (chartReadyRef.current && markersRef.current) {
+      markersRef.current.setMarkers([]);
+    }
+  };
 
   // 图表 resize 监听和组件卸载清理
   useEffect(() => {
@@ -225,14 +207,13 @@ export default function Market() {
     };
     window.addEventListener('resize', handleResize);
 
-    // 监听主题变化，重新创建 K 线图（图表库不支持 CSS 变量动态更新）
     const observer = new MutationObserver(() => {
-      // 销毁旧图表，下次 loadKlineData 时会重建
       chartRef.current?.remove();
       chartRef.current = null;
       candlestickSeriesRef.current = null;
-      // 触发重新加载数据
-      loadKlineData();
+      chartReadyRef.current = false;
+      markersRef.current = null;
+      setTimeout(() => loadKlineData(), 100);
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
@@ -241,460 +222,183 @@ export default function Market() {
       chartRef.current?.remove();
       chartRef.current = null;
       candlestickSeriesRef.current = null;
+      chartReadyRef.current = false;
+      markersRef.current = null;
       observer.disconnect();
+      marker.cleanup();
     };
-  }, [loadKlineData]);
-
-  const columns = [
-    {
-      title: '代码',
-      dataIndex: 'symbol',
-      key: 'symbol',
-      width: 140,
-      render: (v: string) => (
-        <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: 13 }}>{v}</span>
-      )
-    },
-    {
-      title: '最新价',
-      dataIndex: 'last_price',
-      key: 'last_price',
-      width: 120,
-      render: (price: number, record: TickData) => {
-        const openPrice = openPrices[record.symbol];
-        const change = openPrice ? ((price - openPrice) / openPrice) * 100 : 0;
-        const isUp = change > 0;
-        const isDown = change < 0;
-        return (
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 700,
-            fontSize: 16,
-            color: isUp ? chartColors.upColor : isDown ? chartColors.downColor : 'var(--text-primary)',
-          }}>
-            {price?.toFixed(2) || '—'}
-          </span>
-        );
-      }
-    },
-    {
-      title: '涨跌幅',
-      key: 'change',
-      width: 100,
-      render: (_: any, record: TickData) => {
-        const openPrice = openPrices[record.symbol];
-        if (!openPrice) return <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>—</span>;
-        const change = ((record.last_price - openPrice) / openPrice) * 100;
-        const isUp = change > 0;
-        const isDown = change < 0;
-        return (
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 600,
-            fontSize: 13,
-            color: isUp ? chartColors.upColor : isDown ? chartColors.downColor : 'var(--text-muted)',
-          }}>
-            {isUp ? '+' : ''}{change.toFixed(2)}%
-          </span>
-        );
-      }
-    },
-    {
-      title: '成交量',
-      dataIndex: 'volume',
-      key: 'volume',
-      width: 120,
-      render: (vol: number) => (
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 12,
-          color: 'var(--text-secondary)',
-        }}>
-          {vol?.toLocaleString() || '—'}
-        </span>
-      )
-    },
-    {
-      title: '时间',
-      dataIndex: 'timestamp',
-      key: 'timestamp',
-      width: 100,
-      render: (t: string) => (
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          color: 'var(--text-muted)',
-        }}>
-          {t ? new Date(t).toLocaleTimeString('zh-CN', { hour12: false }) : '—'}
-        </span>
-      )
-    },
-  ];
+  }, [loadKlineData, marker]);
 
   return (
     <div>
       <div className="page-header">
         <h1 className="page-title">Market</h1>
-        <p className="page-subtitle">实时行情数据流</p>
+        <p className="page-subtitle">K线图表</p>
       </div>
 
-      {/* Control Bar */}
-      <div className="control-bar animate-in" style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '14px 20px',
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-md)',
-        marginBottom: 20,
-      }}>
-        {subscribed ? (
-          <Button
-            danger
-            onClick={handleUnsubscribe}
-            icon={<DisconnectOutlined />}
-            style={{
-              fontWeight: 600,
-            }}
-          >
-            取消订阅
-          </Button>
-        ) : (
-          <Button
-            type="primary"
-            onClick={handleSubscribe}
-            icon={<ThunderboltOutlined />}
-            style={{
-              fontWeight: 600,
-            }}
-          >
-            开始订阅
-          </Button>
-        )}
-
-        <div style={{ borderLeft: '1px solid var(--border-subtle)', height: 24 }} />
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <ClockCircleOutlined style={{ color: 'var(--text-muted)', fontSize: 13 }} />
-          <Segmented
-            size="small"
-            value={timeRange}
-            onChange={(val) => setTimeRange(val as number)}
+      {/* K线图表 */}
+      <div
+        className="animate-in"
+        style={{
+          background: chartColors.containerBg,
+          border: `1px solid ${chartColors.containerBorder}`,
+          borderRadius: 8,
+          padding: 16,
+        }}
+      >
+        {/* 控制栏 */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+          marginBottom: 16,
+          paddingBottom: 16,
+          borderBottom: `1px solid ${chartColors.gridColor}`,
+          flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 12, color: chartColors.textSecondary, fontWeight: 600 }}>交易对:</span>
+          <div className="hide-mobile">
+            <Tabs
+              size="small"
+              activeKey={klineSymbol}
+              onChange={(key) => setKlineSymbol(key)}
+              items={[
+                { key: 'BTC-USDT', label: 'BTC-USDT' },
+                { key: 'ETH-USDT', label: 'ETH-USDT' },
+              ]}
+              style={{ minWidth: 200 }}
+            />
+          </div>
+          <Select
+            value={klineSymbol}
+            onChange={setKlineSymbol}
+            className="show-mobile-only"
+            style={{ width: 120 }}
             options={[
-              { label: '1分钟', value: 60 },
-              { label: '5分钟', value: 300 },
-              { label: '15分钟', value: 900 },
+              { label: 'BTC-USDT', value: 'BTC-USDT' },
+              { label: 'ETH-USDT', value: 'ETH-USDT' },
             ]}
-            style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}
           />
-        </div>
 
-        {subscribed && (
+          <span style={{ fontSize: 12, color: chartColors.textSecondary, fontWeight: 600, marginLeft: 8 }}>周期:</span>
+          <div className="hide-mobile">
+            <Tabs
+              size="small"
+              activeKey={klineInterval}
+              onChange={(key) => setKlineInterval(key)}
+              items={[
+                { key: '1m', label: '1分钟' },
+                { key: '5m', label: '5分钟' },
+                { key: '15m', label: '15分钟' },
+                { key: '1H', label: '1小时' },
+                { key: '1D', label: '1天' },
+              ]}
+              style={{ minWidth: 300 }}
+            />
+          </div>
+          <Select
+            value={klineInterval}
+            onChange={setKlineInterval}
+            className="show-mobile-only"
+            style={{ width: 100 }}
+            options={[
+              { label: '1分钟', value: '1m' },
+              { label: '5分钟', value: '5m' },
+              { label: '15分钟', value: '15m' },
+              { label: '1小时', value: '1H' },
+              { label: '1天', value: '1D' },
+            ]}
+          />
+
+          <Button
+            size="small"
+            onClick={loadKlineData}
+            loading={klineLoading}
+            icon={<ReloadOutlined />}
+          >
+            刷新
+          </Button>
+
+          {/* 信号控制面板 */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            marginLeft: 'auto',
-            fontSize: 12,
-            fontFamily: 'var(--font-mono)',
-            color: 'var(--gain)',
+            gap: 12,
+            marginLeft: 16,
+            paddingLeft: 16,
+            borderLeft: `1px solid ${chartColors.gridColor}`,
+            flexWrap: 'wrap',
           }}>
-            <WifiOutlined style={{ animation: 'pulse-soft 2s ease-in-out infinite' }} />
-            STREAMING
+            <span style={{ fontSize: 12, color: chartColors.textSecondary, fontWeight: 600 }}>信号:</span>
+            <Switch
+              size="small"
+              checked={marker.enabled}
+              onChange={(checked) => marker.setEnabled(checked)}
+            />
+            {marker.enabled && (
+              <>
+                <Select
+                  mode="multiple"
+                  size="small"
+                  placeholder="选择策略"
+                  style={{ minWidth: 160, maxWidth: 280 }}
+                  value={marker.selectedStrategies}
+                  onChange={(vals) => marker.setSelectedStrategies(vals as string[])}
+                  options={marker.selectedStrategies.map(sid => ({ label: sid, value: sid }))}
+                  maxTagCount={2}
+                  allowClear
+                />
+                <Select
+                  size="small"
+                  value={marker.sideFilter}
+                  onChange={(val) => marker.setSideFilter(val)}
+                  style={{ width: 80 }}
+                  options={[
+                    { label: '全部', value: 'all' },
+                    { label: '买入', value: 'buy' },
+                    { label: '卖出', value: 'sell' },
+                  ]}
+                />
+              </>
+            )}
           </div>
-        )}
-      </div>
-
-      {/* Charts - Real-time & K-line */}
-      <div className="animate-in stagger-1" style={{ marginBottom: 16 }}>
-        <Tabs
-          activeKey={activeChartTab}
-          onChange={(key) => {
-            setActiveChartTab(key);
-            if (key === 'kline') {
-              // 延迟调用，等待 React 完成 DOM 更新后容器可见
-              setTimeout(() => loadKlineData(), 0);
-            }
-          }}
-          items={[
-            {
-              key: 'realtime',
-              label: (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <LineChartOutlined />
-                  实时行情
-                </span>
-              ),
-              children: (
-                <>
-                  {Object.keys(ticks).length > 0 && (
-                    <div className="page-grid" style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                      gap: 16,
-                    }}>
-                      {Object.entries(priceHistory)
-                        .filter(([, data]) => data.length > 0)
-                        .map(([symbol, data]) => {
-                          const currentTick = ticks[symbol];
-                          const openPrice = openPrices[symbol];
-                          const change = openPrice ? ((currentTick.last_price - openPrice) / openPrice) * 100 : 0;
-                          const isUp = change > 0;
-                          const isDown = change < 0;
-                          const displayData = data.slice(-timeRange);
-
-                          return (
-                            <div key={symbol} style={{
-                              background: chartColors.containerBg,
-                              border: `1px solid ${chartColors.containerBorder}`,
-                              borderRadius: 8,
-                              padding: '16px 18px',
-                              backdropFilter: 'blur(8px)',
-                            }}>
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'baseline',
-                                justifyContent: 'space-between',
-                                marginBottom: 14,
-                              }}>
-                                <div style={{
-                                  fontFamily: 'var(--font-mono)',
-                                  fontWeight: 700,
-                                  fontSize: 15,
-                                  color: chartColors.textPrimary,
-                                  letterSpacing: '0.02em',
-                                }}>
-                                  {symbol}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                                  <span style={{
-                                    fontFamily: 'var(--font-mono)',
-                                    fontWeight: 700,
-                                    fontSize: 18,
-                                    color: isUp ? chartColors.upColor : isDown ? chartColors.downColor : chartColors.textSecondary,
-                                  }}>
-                                    {currentTick.last_price.toFixed(2)}
-                                  </span>
-                                  <span style={{
-                                    fontFamily: 'var(--font-mono)',
-                                    fontWeight: 600,
-                                    fontSize: 12,
-                                    color: isUp ? chartColors.upColor : isDown ? chartColors.downColor : chartColors.textMuted,
-                                  }}>
-                                    {isUp ? '+' : ''}{change.toFixed(2)}%
-                                  </span>
-                                </div>
-                              </div>
-                              <ResponsiveContainer width="100%" height={180}>
-                                <ComposedChart data={displayData}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke={chartColors.gridColor} />
-                                  <XAxis
-                                    dataKey="time"
-                                    stroke={chartColors.textMuted}
-                                    style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
-                                    tick={{ fill: chartColors.textMuted }}
-                                  />
-                                  <YAxis
-                                    yAxisId="price"
-                                    stroke={chartColors.textMuted}
-                                    style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
-                                    domain={['dataMin - 0.5', 'dataMax + 0.5']}
-                                    tick={{ fill: chartColors.textMuted }}
-                                  />
-                                  <YAxis
-                                    yAxisId="volume"
-                                    orientation="right"
-                                    stroke={chartColors.textMuted}
-                                    style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}
-                                    tick={{ fill: chartColors.textMuted }}
-                                  />
-                                  <Tooltip
-                                    contentStyle={{
-                                      background: chartColors.tooltipBg,
-                                      border: `1px solid ${chartColors.tooltipBorder}`,
-                                      borderRadius: 6,
-                                      fontSize: 11,
-                                      fontFamily: 'var(--font-mono)',
-                                      padding: '8px 10px',
-                                    }}
-                                    labelStyle={{ color: chartColors.textSecondary, marginBottom: 4 }}
-                                  />
-                                  <Bar yAxisId="volume" dataKey="volume" fill={chartColors.volumeFill} />
-                                  <Line
-                                    yAxisId="price"
-                                    type="monotone"
-                                    dataKey="price"
-                                    stroke={isUp ? chartColors.upColor : isDown ? chartColors.downColor : chartColors.priceLine}
-                                    strokeWidth={2}
-                                    dot={false}
-                                    animationDuration={300}
-                                  />
-                                </ComposedChart>
-                              </ResponsiveContainer>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  )}
-                </>
-              ),
-            },
-            {
-              key: 'kline',
-              label: (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <BarChartOutlined />
-                  K线图
-                </span>
-              ),
-              children: (
-                <div style={{
-                  background: chartColors.containerBg,
-                  border: `1px solid ${chartColors.containerBorder}`,
-                  borderRadius: 8,
-                  padding: 16,
-                }}>
-                  {/* K线控制栏 */}
-                  <div className="control-bar" style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 16,
-                    marginBottom: 16,
-                    paddingBottom: 16,
-                    borderBottom: `1px solid ${chartColors.gridColor}`,
-                    flexWrap: 'wrap',
-                  }}>
-                    <span style={{ fontSize: 12, color: chartColors.textSecondary, fontWeight: 600 }}>交易对:</span>
-                    <div className="hide-mobile">
-                      <Tabs
-                        size="small"
-                        activeKey={klineSymbol}
-                        onChange={(key) => setKlineSymbol(key)}
-                        items={[
-                          { key: 'BTC-USDT', label: 'BTC-USDT' },
-                          { key: 'ETH-USDT', label: 'ETH-USDT' },
-                        ]}
-                        style={{ minWidth: 200 }}
-                      />
-                    </div>
-                    {/* Mobile: use Select instead */}
-                    <Select
-                      value={klineSymbol}
-                      onChange={setKlineSymbol}
-                      className="show-mobile-only"
-                      style={{ width: 120 }}
-                      options={[
-                        { label: 'BTC-USDT', value: 'BTC-USDT' },
-                        { label: 'ETH-USDT', value: 'ETH-USDT' },
-                      ]}
-                    />
-
-                    <span style={{ fontSize: 12, color: chartColors.textSecondary, fontWeight: 600, marginLeft: 8 }}>周期:</span>
-                    <div className="hide-mobile">
-                      <Tabs
-                        size="small"
-                        activeKey={klineInterval}
-                        onChange={(key) => setKlineInterval(key)}
-                        items={[
-                          { key: '1m', label: '1分钟' },
-                          { key: '5m', label: '5分钟' },
-                          { key: '15m', label: '15分钟' },
-                          { key: '1H', label: '1小时' },
-                          { key: '1D', label: '1天' },
-                        ]}
-                        style={{ minWidth: 300 }}
-                      />
-                    </div>
-                    {/* Mobile: use Select instead */}
-                    <Select
-                      value={klineInterval}
-                      onChange={setKlineInterval}
-                      className="show-mobile-only"
-                      style={{ width: 100 }}
-                      options={[
-                        { label: '1分钟', value: '1m' },
-                        { label: '5分钟', value: '5m' },
-                        { label: '15分钟', value: '15m' },
-                        { label: '1小时', value: '1H' },
-                        { label: '1天', value: '1D' },
-                      ]}
-                    />
-
-                    <Button
-                      size="small"
-                      onClick={loadKlineData}
-                      loading={klineLoading}
-                      style={{ marginLeft: 'auto' }}
-                    >
-                      刷新
-                    </Button>
-                  </div>
-
-                  {/* K线图表容器 */}
-                  <div ref={chartContainerRef} style={{ width: '100%', minHeight: 400 }} />
-                </div>
-              ),
-            },
-          ]}
-        />
-      </div>
-
-      {/* Data Table */}
-      <div className="animate-in stagger-2" style={{
-        background: chartColors.containerBg,
-        border: `1px solid ${chartColors.containerBorder}`,
-        borderRadius: 8,
-        overflow: 'hidden',
-        backdropFilter: 'blur(8px)',
-      }}>
-        <div style={{
-          padding: '12px 20px',
-          borderBottom: `1px solid ${chartColors.containerBorder}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          <span style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: chartColors.textSecondary,
-            fontFamily: 'var(--font-mono)',
-            letterSpacing: '0.05em',
-            textTransform: 'uppercase',
-          }}>
-            实时行情
-          </span>
-          <span style={{
-            fontSize: 10,
-            fontFamily: 'var(--font-mono)',
-            color: chartColors.textMuted,
-            padding: '2px 8px',
-            background: chartColors.tagBg,
-            borderRadius: 4,
-          }}>
-            {Object.keys(ticks).length} 标的
-          </span>
         </div>
-        <Table
-          columns={columns}
-          dataSource={Object.values(ticks)}
-          rowKey="symbol"
-          pagination={false}
-          size="small"
-          locale={{
-            emptyText: (
-              <div style={{
-                padding: '40px 0',
-                textAlign: 'center',
-                color: chartColors.textMuted,
-              }}>
-                <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.4 }}>📡</div>
-                <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)' }}>点击"开始订阅"接收实时数据</div>
+
+        {/* K线图表容器 */}
+        <div ref={chartContainerRef} style={{ width: '100%', minHeight: 500, position: 'relative' }}>
+          {/* 信号详情 tooltip */}
+          {tooltipData.visible && tooltipData.signal && (
+            <div
+              ref={tooltipContainerRef}
+              style={{
+                position: 'absolute',
+                left: tooltipData.x + 12,
+                top: tooltipData.y - 10,
+                zIndex: 100,
+                background: chartColors.containerBg,
+                border: `1px solid ${chartColors.containerBorder}`,
+                borderRadius: 8,
+                padding: '8px 12px',
+                fontSize: 12,
+                color: chartColors.textColor,
+                pointerEvents: 'none',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                minWidth: 200,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 6, color: tooltipData.signal.side === 'buy' ? chartColors.upColor : chartColors.downColor }}>
+                {tooltipData.signal.side === 'buy' ? '▲ 买入信号' : '▼ 卖出信号'}
               </div>
-            )
-          }}
-        />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <div><span style={{ color: chartColors.textSecondary }}>策略:</span> {tooltipData.signal.strategy_id}</div>
+                <div><span style={{ color: chartColors.textSecondary }}>价格:</span> {tooltipData.signal.price}</div>
+                <div><span style={{ color: chartColors.textSecondary }}>数量:</span> {tooltipData.signal.quantity}</div>
+                <div><span style={{ color: chartColors.textSecondary }}>时间:</span> {new Date(tooltipData.signal.timestamp).toLocaleString()}</div>
+                <div style={{ color: chartColors.textSecondary, fontSize: 11, marginTop: 2 }}>{tooltipData.signal.reason}</div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

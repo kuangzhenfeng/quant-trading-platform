@@ -25,6 +25,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./backend/accounts_import.json:/app/accounts_import.json:ro
+      - ./version.json:/app/version.json:ro
     depends_on:
       - db
 

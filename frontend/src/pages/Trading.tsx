@@ -92,7 +92,7 @@ export default function Trading() {
       loadData();
       loadOrders();
     } catch (error: unknown) {
-      message.error((error as ApiError).response?.data?.detail || '下单失败');
+      message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '下单失败');
     } finally {
       setLoading(false);
     }
@@ -104,7 +104,7 @@ export default function Trading() {
       message.success('撤单成功');
       loadOrders();
     } catch (error: unknown) {
-      message.error((error as ApiError).response?.data?.detail || '撤单失败');
+      message.error((error as ApiError).response?.data?.message || (error as ApiError).response?.data?.detail || '撤单失败');
     }
   };
 

@@ -15,7 +15,6 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 async def reload_adapters():
-    """重新加载所有 adapter"""
     from app.services.trading import trading_service
     from app.services.market import market_service
     from app.services.account import account_service
@@ -29,15 +28,16 @@ async def reload_adapters():
     for strategy_id in list(strategy_engine.strategies.keys()):
         try:
             await strategy_engine.stop(strategy_id)
-        except:
-            pass
+        except Exception as e:
+            log_service.log(LogLevel.WARNING, "system", f"停止策略失败 {strategy_id}: {e}")
 
     # 2. 断开并清空现有 adapter
-    for adapter in trading_service.adapters.values():
+    for broker_name, adapter in list(trading_service.adapters.items()):
         try:
             await adapter.disconnect()
-        except:
-            pass
+            log_service.log(LogLevel.INFO, "system", f"已断开 adapter: {broker_name}")
+        except Exception as e:
+            log_service.log(LogLevel.WARNING, "system", f"断开 adapter 失败 {broker_name}: {e}")
     trading_service.adapters.clear()
     market_service.adapters.clear()
 
@@ -54,8 +54,10 @@ async def reload_adapters():
                     trading_service.register_adapter(account.broker, adapter)
                     market_service.register_adapter(account.broker, adapter)
                     loaded_brokers.add(account.broker)
+                    log_service.log(LogLevel.INFO, "system", f"MOCK 模式已加载券商: {account.broker}")
                 except Exception as e:
-                    log_service.log(LogLevel.WARNING, "system", f"创建MockAdapter失败 {account.broker}: {e}")
+                    log_service.log(LogLevel.ERROR, "system", f"创建 MockAdapter 失败 {account.broker}: {type(e).__name__}: {e}")
+                    raise  # MOCK 模式 adapter 加载失败应该中断，不降级
     else:
         # PAPER/LIVE模式：加载匹配的真实账户
         accounts = await account_service.list_accounts()
@@ -75,11 +77,19 @@ async def reload_adapters():
                     await adapter.connect()
                     trading_service.register_adapter(account.broker, adapter)
                     market_service.register_adapter(account.broker, adapter)
+                    mode_label = "模拟盘" if is_paper else "实盘"
+                    log_service.log(LogLevel.INFO, "system", f"已加载账户: {account.name} ({account.broker}) - {mode_label}")
                 except Exception as e:
-                    log_service.log(LogLevel.WARNING, "system", f"重新加载账户失败 {account.name}: {e}")
+                    log_service.log(LogLevel.ERROR, "system", f"加载账户失败 {account.name} ({account.broker}): {type(e).__name__}: {e}")
+                    raise  # 账户加载失败应该中断，不静默降级
 
     # 4. 重新初始化策略引擎（重新创建策略上下文）
-    await strategy_engine.restore_from_db()
+    try:
+        await strategy_engine.restore_from_db()
+        log_service.log(LogLevel.INFO, "system", f"策略引擎已恢复，共 {len(strategy_engine.strategies)} 个策略")
+    except Exception as e:
+        log_service.log(LogLevel.ERROR, "system", f"恢复策略引擎失败: {type(e).__name__}: {e}")
+        raise
 
     log_service.log(LogLevel.INFO, "system", f"Adapter 重新加载完成，共加载 {len(trading_service.adapters)} 个券商")
 
@@ -209,8 +219,20 @@ async def update_config(
     mode_switched = any(item.key == "TRADING_MODE" for item in request.configs)
     if mode_switched:
         new_mode = next(item.value for item in request.configs if item.key == "TRADING_MODE")
+        mode_name_map = {"live": "实盘", "paper": "模拟盘", "mock": "MOCK"}
+        mode_label = mode_name_map.get(new_mode, new_mode)
         log_service.log(LogLevel.INFO, "system", f"交易模式切换为: {new_mode}")
-        await reload_adapters()
+        try:
+            await reload_adapters()
+        except HTTPException:
+            raise
+        except Exception as e:
+            import traceback
+            log_service.log(LogLevel.ERROR, "system", f"切换到{mode_label}模式失败: {e}\n{traceback.format_exc()}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"切换到{mode_label}模式失败：重新加载券商适配器时出错 ({type(e).__name__}: {e})"
+            )
 
     updated_keys = [item.key for item in request.configs]
     log_service.log(LogLevel.INFO, "system", f"系统配置更新: {updated_keys}")

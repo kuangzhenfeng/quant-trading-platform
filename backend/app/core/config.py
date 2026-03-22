@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     AUTH_JWT_ALGORITHM: str = "HS256"
     AUTH_ACCESS_TOKEN_EXPIRE_DAYS: int = 7
 
+    # 调试模式（开启后错误响应包含完整堆栈）
+    DEBUG: bool = False
+
     class Config:
         env_file = ".env"
         extra = "ignore"  # 忽略额外的环境变量

@@ -2,6 +2,7 @@
 *.code-workspace
 .DS_Store
 __pycache__/
+.superpowers/
 .playwright-mcp/
 .pytest_cache/
 .venv/

@@ -1,16 +1,28 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Card, Table, Select, Tag } from 'antd';
-import { FileTextOutlined } from '@ant-design/icons';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Card, Table, Select, Tag, Input } from 'antd';
+import { FileTextOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons';
 import { logsApi } from '../services/logs';
 import type { LogsResponse, LogEntry } from '../types/api';
 
 export default function Logs() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
   const [level, setLevel] = useState<string | undefined>();
+  const [source, setSource] = useState<string | undefined>();
+  const [searchText, setSearchText] = useState('');
+
+  // 可选的来源列表（从已加载日志中提取唯一值）
+  const sourceOptions = useMemo(() => {
+    const sources = [...new Set(allLogs.map((l) => l.source))].sort();
+    return sources.map((s) => ({ value: s, label: s }));
+  }, [allLogs]);
 
   const fetchLogs = useCallback(async () => {
-    const data = await logsApi.getLogs({ level }) as LogsResponse;
-    setLogs(data.logs);
+    // 不带 source 过滤，获取全量用于提取来源选项
+    // 后端 LogLevel 枚举是大写 (ERROR/WARNING/INFO)，需转换
+    const params = new URLSearchParams({ limit: '500' });
+    if (level) params.set('level', level.toUpperCase());
+    const data = await logsApi.getLogsRaw(params) as LogsResponse;
+    setAllLogs(data.logs);
   }, [level]);
 
   useEffect(() => {
@@ -18,6 +30,16 @@ export default function Logs() {
     const timer = setInterval(fetchLogs, 5000);
     return () => clearInterval(timer);
   }, [fetchLogs]);
+
+  // 根据搜索文本和来源过滤
+  const logs = useMemo(() => {
+    const q = searchText.trim().toLowerCase();
+    return allLogs.filter((l) => {
+      if (q && !l.message.toLowerCase().includes(q)) return false;
+      if (source && l.source !== source) return false;
+      return true;
+    });
+  }, [allLogs, searchText, source]);
 
   const columns = [
     {
@@ -132,6 +154,8 @@ export default function Logs() {
               justifyContent: 'space-between',
               padding: '16px 20px',
               borderBottom: '1px solid var(--border-subtle)',
+              flexWrap: 'wrap',
+              gap: 12,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -151,31 +175,74 @@ export default function Logs() {
               </span>
             </div>
 
-            <Select
-              style={{ width: 140 }}
-              placeholder="全部级别"
-              allowClear
-              onChange={setLevel}
-              styles={{
-                popup: {
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {/* 搜索框 */}
+              <Input
+                prefix={<SearchOutlined style={{ color: 'var(--text-muted)', fontSize: 12 }} />}
+                placeholder="搜索消息内容..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                allowClear
+                style={{ width: 200 }}
+                styles={{
                   root: {
                     background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-sm)',
+                    borderColor: 'var(--border-default)',
                   },
-                },
-              }}
-            >
-              <Select.Option value="info">
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--cyan-400)' }}>INFO</span>
-              </Select.Option>
-              <Select.Option value="warning">
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--amber-400)' }}>WARNING</span>
-              </Select.Option>
-              <Select.Option value="error">
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--loss)' }}>ERROR</span>
-              </Select.Option>
-            </Select>
+                }}
+              />
+
+              {/* 来源过滤 */}
+              <Select
+                style={{ width: 160 }}
+                placeholder={
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <FilterOutlined style={{ fontSize: 11 }} />
+                    全部来源
+                  </span>
+                }
+                allowClear
+                value={source}
+                onChange={setSource}
+                options={sourceOptions}
+                styles={{
+                  popup: {
+                    root: {
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-sm)',
+                    },
+                  },
+                }}
+              />
+
+              {/* 级别过滤 */}
+              <Select
+                style={{ width: 140 }}
+                placeholder="全部级别"
+                allowClear
+                onChange={setLevel}
+                styles={{
+                  popup: {
+                    root: {
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-sm)',
+                    },
+                  },
+                }}
+              >
+                <Select.Option value="info">
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--cyan-400)' }}>INFO</span>
+                </Select.Option>
+                <Select.Option value="warning">
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--amber-400)' }}>WARNING</span>
+                </Select.Option>
+                <Select.Option value="error">
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--loss)' }}>ERROR</span>
+                </Select.Option>
+              </Select>
+            </div>
           </div>
 
           {/* Table */}
@@ -185,6 +252,16 @@ export default function Logs() {
             rowKey={(r) => r.timestamp}
             pagination={{ pageSize: 20, size: 'small' }}
             style={{ background: 'transparent' }}
+            footer={() => (
+              <div style={{ padding: '8px 16px', color: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                共 {logs.length} 条日志
+                {(searchText || source || level) && (
+                  <span style={{ marginLeft: 8 }}>
+                    （筛选自 {allLogs.length} 条）
+                  </span>
+                )}
+              </div>
+            )}
           />
         </Card>
       </div>

@@ -105,6 +105,50 @@ async def update_strategy(strategy_id: str, req: CreateStrategyRequest):
     return {"status": "updated"}
 
 
+@router.get("/signals")
+async def get_signals(symbol: str, strategy_ids: str):
+    """批量获取策略信号（用于K线图信号叠加）
+    strategy_ids: 逗号分隔的策略ID列表，如 ma_okx_BTC-USDT,macd_okx_BTC-USDT
+    """
+    from sqlalchemy import select, desc, or_
+    from app.models.db_models import DBStrategySignal
+    from app.core.database import AsyncSessionLocal
+
+    ids = [s.strip() for s in strategy_ids.split(',') if s.strip()]
+    if not ids:
+        return {"signals": {}}
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(DBStrategySignal)
+            .where(
+                DBStrategySignal.symbol == symbol,
+                DBStrategySignal.strategy_id.in_(ids)
+            )
+            .order_by(desc(DBStrategySignal.timestamp))
+            .limit(100)
+        )
+        signals = result.scalars().all()
+
+    # 按 strategy_id 分组
+    grouped: dict[str, list] = {sid: [] for sid in ids}
+    for s in signals:
+        if s.strategy_id in grouped:
+            grouped[s.strategy_id].append({
+                "id": s.id,
+                "strategy_id": s.strategy_id,
+                "timestamp": s.timestamp.isoformat() + "Z" if s.timestamp else None,
+                "symbol": s.symbol,
+                "side": s.side,
+                "price": s.price,
+                "quantity": s.quantity,
+                "reason": s.reason,
+                "status": s.status,
+            })
+
+    return {"signals": grouped}
+
+
 @router.get("/{strategy_id}/signals")
 async def get_strategy_signals(strategy_id: str):
     """获取策略信号历史（最近100条，按时间倒序）"""
@@ -172,3 +216,100 @@ async def delete_strategy(strategy_id: str):
         await session.execute(delete(DBStrategyPerformance).where(DBStrategyPerformance.strategy_id == strategy_id))
         await session.commit()
     return {"message": "策略已删除"}
+
+
+# ─── 批量操作 ───────────────────────────────────────────────────────────────────
+
+class BatchCreateRequest(BaseModel):
+    broker: str
+
+
+@router.post("/create-and-start-all")
+async def create_and_start_all(req: BatchCreateRequest):
+    """一键创建并启用全部策略（16种策略类型 × 2个交易对）"""
+    from sqlalchemy import select
+    from app.models.db_models import DBStrategyConfig
+    from app.core.database import AsyncSessionLocal
+
+    # 16种策略类型 × 2个交易对
+    strategy_types = [
+        "ma", "macd", "bollinger", "rsi", "supertrend", "parabolic",
+        "stochastic", "adx", "momentum", "cci", "atr_channel", "keltner",
+        "donchian", "dual_rsi", "ma_rsi", "ichimoku",
+    ]
+    symbols = ["BTC-USDT", "ETH-USDT"]
+    quantity = 0.01
+
+    created = 0
+    skipped = 0
+    errors: list[str] = []
+
+    # 获取已存在的策略列表
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(DBStrategyConfig.strategy_id))
+        existing_ids = {row[0] for row in result.fetchall()}
+
+    for stype in strategy_types:
+        for symbol in symbols:
+            strategy_id = f"{stype}_{req.broker}_{symbol}"
+
+            # 跳过已存在的策略
+            if strategy_id in existing_ids:
+                skipped += 1
+                continue
+
+            try:
+                # 获取默认参数
+                params_schema = StrategyRegistry.get_params_schema(stype)
+                params: dict = {"symbol": symbol, "quantity": quantity}
+                for key, cfg in params_schema.items():
+                    params[key] = cfg.get("default", 0)
+
+                # 创建策略
+                strategy = StrategyRegistry.create(stype, f"{stype}策略", params)
+                await strategy_engine.register(strategy_id, strategy, req.broker, params)
+
+                # 立即启用
+                await strategy_engine.start(strategy_id)
+
+                created += 1
+            except Exception as e:
+                errors.append(f"{strategy_id}: {e}")
+
+    return {"created": created, "skipped": skipped, "errors": errors}
+
+
+@router.post("/delete-all")
+async def delete_all_strategies():
+    """一键删除全部策略"""
+    from sqlalchemy import delete, select
+    from app.models.db_models import DBStrategyConfig, DBStrategyPerformance, DBStrategySignal
+    from app.core.database import AsyncSessionLocal
+
+    # 获取所有策略
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(DBStrategyConfig.strategy_id))
+        strategy_ids = [row[0] for row in result.fetchall()]
+
+    deleted = 0
+    errors: list[str] = []
+
+    for strategy_id in strategy_ids:
+        try:
+            # 从引擎中停止并移除
+            if strategy_id in strategy_engine.strategies:
+                await strategy_engine.stop(strategy_id)
+                strategy_engine.strategies.pop(strategy_id)
+
+            # 删除数据库记录
+            async with AsyncSessionLocal() as session:
+                await session.execute(delete(DBStrategySignal).where(DBStrategySignal.strategy_id == strategy_id))
+                await session.execute(delete(DBStrategyConfig).where(DBStrategyConfig.strategy_id == strategy_id))
+                await session.execute(delete(DBStrategyPerformance).where(DBStrategyPerformance.strategy_id == strategy_id))
+                await session.commit()
+
+            deleted += 1
+        except Exception as e:
+            errors.append(f"{strategy_id}: {e}")
+
+    return {"deleted": deleted, "errors": errors}

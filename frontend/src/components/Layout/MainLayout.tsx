@@ -20,6 +20,7 @@ import {
   SettingOutlined,
   MoreOutlined,
   HomeOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
 import { useTradingModeStore } from '../../stores/tradingModeStore';
 import { useBrokerStore } from '../../stores/brokerStore';
@@ -27,6 +28,7 @@ import { useThemeStore } from '../../stores/themeStore';
 import { authService } from '../../services/auth';
 import { systemApi } from '../../services/system';
 import { useWebSocketStatus } from '../../hooks/useWebSocketStatus';
+import type { ApiError } from '../../types/api';
 import TopProgressBar from '../TopProgressBar';
 
 // 太阳/月亮图标 SVG 组件
@@ -124,6 +126,7 @@ const allNavItems = [
   { key: '/account', icon: <BankOutlined />, label: '券商账户' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
   { key: '/logs', icon: <FileTextOutlined />, label: '日志' },
+  { key: '/about', icon: <InfoCircleOutlined />, label: '关于' },
 ];
 
 function ModeIndicator({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
@@ -141,8 +144,16 @@ function ModeIndicator({ onOpenChange }: { onOpenChange?: (open: boolean) => voi
       await setMode(newMode);
       message.success(`已切换到${config[newMode].label}模式`);
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { detail?: string } } };
-      message.error(err.response?.data?.detail || '切换失败');
+      const err = error as ApiError;
+      const msg = err.response?.data?.message || err.response?.data?.detail;
+      // 交易模式切换失败，按模式提供具体提示
+      if (newMode === 'live') {
+        message.error(msg || '切换到实盘模式失败，请检查实盘账号配置和API密钥');
+      } else if (newMode === 'paper') {
+        message.error(msg || '切换到模拟盘模式失败，请检查模拟盘账号配置');
+      } else {
+        message.error(msg || '切换到MOCK模式失败');
+      }
     }
   };
 
