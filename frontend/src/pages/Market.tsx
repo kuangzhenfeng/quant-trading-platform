@@ -38,6 +38,7 @@ export default function Market() {
   const [klineInterval, setKlineInterval] = useState('1H');
   const [klineSymbol, setKlineSymbol] = useState('BTC-USDT');
   const [klineLoading, setKlineLoading] = useState(false);
+  const [activeChartTab, setActiveChartTab] = useState('realtime');
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -98,54 +99,39 @@ export default function Market() {
     setSubscribed(true);
   };
 
-  // K线图表初始化
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { color: 'rgba(15, 23, 42, 0.8)' },
-        textColor: '#94a3b8',
-      },
-      grid: {
-        vertLines: { color: 'rgba(51, 65, 85, 0.3)' },
-        horzLines: { color: 'rgba(51, 65, 85, 0.3)' },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
-    });
-
-    const candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#10b981',
-      downColor: '#ef4444',
-      borderUpColor: '#10b981',
-      borderDownColor: '#ef4444',
-      wickUpColor: '#10b981',
-      wickDownColor: '#ef4444',
-    });
-
-    chartRef.current = chart;
-    candlestickSeriesRef.current = candlestickSeries;
-
-    // 响应窗口大小变化
-    const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      chart.remove();
-    };
-  }, []);
-
   // 加载K线数据
   const loadKlineData = useCallback(async () => {
     setKlineLoading(true);
     try {
+      // 懒初始化图表：仅在容器可见且图表尚未创建时创建
+      if (chartContainerRef.current && !chartRef.current) {
+        const chart = createChart(chartContainerRef.current, {
+          layout: {
+            background: { color: 'rgba(15, 23, 42, 0.8)' },
+            textColor: '#94a3b8',
+          },
+          grid: {
+            vertLines: { color: 'rgba(51, 65, 85, 0.3)' },
+            horzLines: { color: 'rgba(51, 65, 85, 0.3)' },
+          },
+          width: chartContainerRef.current.clientWidth,
+          height: 400,
+        });
+        const candlestickSeries = chart.addSeries(CandlestickSeries, {
+          upColor: '#10b981',
+          downColor: '#ef4444',
+          borderUpColor: '#10b981',
+          borderDownColor: '#ef4444',
+          wickUpColor: '#10b981',
+          wickDownColor: '#ef4444',
+        });
+        chartRef.current = chart;
+        candlestickSeriesRef.current = candlestickSeries;
+      }
+      // 确保图表在数据加载前完成尺寸调整
+      if (chartRef.current && chartContainerRef.current) {
+        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
       const data = await marketApi.getKlines(klineSymbol, broker, klineInterval, 100);
       if (candlestickSeriesRef.current && data.klines) {
         const candleData: CandlestickData<Time>[] = data.klines.map(k => ({
@@ -168,6 +154,22 @@ export default function Market() {
   useEffect(() => {
     loadKlineData();
   }, [loadKlineData]);
+
+  // 图表 resize 监听和组件卸载清理
+  useEffect(() => {
+    const handleResize = () => {
+      if (chartContainerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chartRef.current?.remove();
+      chartRef.current = null;
+      candlestickSeriesRef.current = null;
+    };
+  }, []);
 
   const columns = [
     {
@@ -333,7 +335,14 @@ export default function Market() {
       {/* Charts - Real-time & K-line */}
       <div className="animate-in stagger-1" style={{ marginBottom: 16 }}>
         <Tabs
-          defaultActiveKey="realtime"
+          activeKey={activeChartTab}
+          onChange={(key) => {
+            setActiveChartTab(key);
+            if (key === 'kline') {
+              // 延迟调用，等待 React 完成 DOM 更新后容器可见
+              setTimeout(() => loadKlineData(), 0);
+            }
+          }}
           items={[
             {
               key: 'realtime',

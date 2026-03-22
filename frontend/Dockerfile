@@ -3,7 +3,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # 声明构建参数，供 Vite 在构建时注入环境变量
-ARG VITE_AUTH_ENABLED=true
+ARG VITE_AUTH_ENABLED=false
 ENV VITE_AUTH_ENABLED=$VITE_AUTH_ENABLED
 
 COPY package*.json ./
