@@ -27,14 +27,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract repository owner and name
+        id: repo
+        run: |
+          echo "owner=$(echo '${{ github.repository }}' | cut -d'/' -f1)" >> $GITHUB_OUTPUT
+          echo "name=$(echo '${{ github.repository }}' | cut -d'/' -f2)" >> $GITHUB_OUTPUT
+
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}-backend:${{ github.ref_name }}
-            ghcr.io/${{ github.repository }}-backend:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.owner }}/${{ steps.repo.outputs.name }}/backend:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.owner }}/${{ steps.repo.outputs.name }}/backend:${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -44,8 +50,8 @@ jobs:
           context: ./frontend
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}-frontend:${{ github.ref_name }}
-            ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.owner }}/${{ steps.repo.outputs.name }}/frontend:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.owner }}/${{ steps.repo.outputs.name }}/frontend:${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -68,28 +74,34 @@ jobs:
           script: |
             set -e
 
-            PROJECT_DIR="${{ secrets.SERVER_PROJECT_DIR || '/opt/quant-trading-platform' }}"
-            REGISTRY="ghcr.io/${{ github.repository }}"
-            BACKEND_IMAGE="${REGISTRY}-backend"
-            FRONTEND_IMAGE="${REGISTRY}-frontend"
-            IMAGE_TAG="${{ github.ref_name }}"
+            REPO_OWNER="${{ github.repository_owner }}"
+            REPO_NAME="${{ github.event.repository.name }}"
+            REGISTRY="ghcr.io/${REPO_OWNER}/${REPO_NAME}"
+            BACKEND_IMAGE="${REGISTRY}/backend"
+            FRONTEND_IMAGE="${REGISTRY}/frontend"
+            IMAGE_TAG="${{ github.sha }}"
 
             echo "==> 切换到项目目录"
-            cd "$PROJECT_DIR"
+            cd "${{ secrets.SERVER_PROJECT_DIR || '/opt/quant-trading-platform' }}"
 
             echo "==> 拉取最新代码"
             git pull origin main
 
+
             echo "==> 登录 Container Registry"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+            echo "==> 替换镜像标签"
+            sed -i "s|REPO_PATH|${REPO_OWNER}/${REPO_NAME}|g" docker-compose.prod.yml
+            sed -i "s|IMAGE_TAG|${IMAGE_TAG}|g" docker-compose.prod.yml
+
             echo "==> 拉取最新镜像"
-            docker pull "$BACKEND_IMAGE:$IMAGE_TAG"
-            docker pull "$FRONTEND_IMAGE:$IMAGE_TAG"
+            docker pull "${BACKEND_IMAGE}:${IMAGE_TAG}"
+            docker pull "${FRONTEND_IMAGE}:${IMAGE_TAG}"
 
             echo "==> 重启服务"
-            docker compose -f docker-compose.yml down
-            docker compose -f docker-compose.yml up -d
+            docker compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml up -d
 
             echo "==> 等待服务启动"
             sleep 20
@@ -106,13 +118,13 @@ jobs:
 
             if ! curl -sf http://localhost:9000/health > /dev/null 2>&1; then
               echo "Backend health check failed"
-              docker compose -f docker-compose.yml logs backend | tail -50
+              docker compose -f docker-compose.prod.yml logs backend | tail -50
               exit 1
             fi
 
             if ! curl -sf http://localhost/ > /dev/null 2>&1; then
               echo "Frontend health check failed"
-              docker compose -f docker-compose.yml logs frontend | tail -50
+              docker compose -f docker-compose.prod.yml logs frontend | tail -50
               exit 1
             fi
 
@@ -120,7 +132,7 @@ jobs:
             docker image prune -af --filter "until=24h" || true
 
             echo "==> 部署完成"
-            docker compose -f docker-compose.yml ps
+            docker compose -f docker-compose.prod.yml ps
 
   rollback:
     needs: deploy
@@ -142,7 +154,7 @@ jobs:
             PROJECT_DIR="${{ secrets.SERVER_PROJECT_DIR || '/opt/quant-trading-platform' }}"
             cd "$PROJECT_DIR"
             echo "==> 检测到部署失败，执行回滚"
-            docker compose -f docker-compose.yml down
-            docker compose -f docker-compose.yml up -d
+            docker compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml up -d
             echo "==> 回滚完成"
-            docker compose -f docker-compose.yml ps
+            docker compose -f docker-compose.prod.yml ps

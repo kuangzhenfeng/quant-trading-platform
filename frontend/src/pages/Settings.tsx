@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { Form, Button, message, Modal } from 'antd';
 import { SettingOutlined, ExclamationCircleOutlined, DeleteOutlined } from '@ant-design/icons';
 import { api } from '../services/api';
@@ -13,11 +13,7 @@ interface ConfigItem {
 export default function Settings() {
   const [form] = Form.useForm();
 
-  useEffect(() => {
-    fetchConfig();
-  }, []);
-
-  const fetchConfig = async () => {
+  const fetchConfig = useCallback(async () => {
     try {
       const data = await api.get('/system/config');
       const values: Record<string, string> = {};
@@ -28,7 +24,11 @@ export default function Settings() {
     } catch {
       message.error('加载配置失败');
     }
-  };
+  }, [form]);
+
+  useEffect(() => {
+    fetchConfig();
+  }, [fetchConfig]);
 
   const handleReset = () => {
     Modal.confirm({

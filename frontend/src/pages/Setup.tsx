@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Form, Input, Button, message, Steps, Select, Tabs } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -10,11 +10,7 @@ export default function Setup() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    checkInitStatus();
-  }, []);
-
-  const checkInitStatus = async () => {
+  const checkInitStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/system/init-status');
       const data = await res.json();
@@ -24,7 +20,11 @@ export default function Setup() {
     } catch {
       console.error('检查初始化状态失败');
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    checkInitStatus();
+  }, [checkInitStatus]);
 
   const handleCreateAdmin = async (values: { username: string; password: string }) => {
     setLoading(true);

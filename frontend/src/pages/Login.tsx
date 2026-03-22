@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Form, Input, Button, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +9,7 @@ export default function Login() {
   const navigate = useNavigate();
   const { message } = App.useApp();
 
-  const checkInitStatus = async () => {
+  const checkInitStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/system/init-status');
       const data = await res.json();
@@ -19,11 +19,11 @@ export default function Login() {
     } catch {
       console.error('检查初始化状态失败');
     }
-  };
+  }, [navigate]);
 
   useEffect(() => {
     checkInitStatus();
-  }, []);
+  }, [checkInitStatus]);
 
   const handleLogin = async (values: { username: string; password: string }) => {
     setLoading(true);
