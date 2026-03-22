@@ -68,8 +68,9 @@ function ModeIndicator({ onOpenChange }: { onOpenChange?: (open: boolean) => voi
     try {
       await setMode(newMode);
       message.success(`已切换到${config[newMode].label}模式`);
-    } catch (error: any) {
-      message.error(error.response?.data?.detail || '切换失败');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { detail?: string } } };
+      message.error(err.response?.data?.detail || '切换失败');
     }
   };
 
@@ -176,7 +177,7 @@ export default function MainLayout() {
       setTimeout(() => {
         window.location.reload();
       }, 3000);
-    } catch (error) {
+    } catch {
       message.error('重启失败');
       setRestarting(false);
     }

@@ -352,7 +352,7 @@ export default function Market() {
                       gap: 16,
                     }}>
                       {Object.entries(priceHistory)
-                        .filter(([_, data]) => data.length > 0)
+                        .filter(([, data]) => data.length > 0)
                         .map(([symbol, data]) => {
                           const currentTick = ticks[symbol];
                           const openPrice = openPrices[symbol];

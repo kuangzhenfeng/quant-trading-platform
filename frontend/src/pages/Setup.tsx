@@ -21,8 +21,8 @@ export default function Setup() {
       if (data.has_admin) {
         navigate('/login');
       }
-    } catch (error) {
-      console.error('检查初始化状态失败:', error);
+    } catch {
+      console.error('检查初始化状态失败');
     }
   };
 
@@ -43,14 +43,14 @@ export default function Setup() {
       });
       message.success('管理员账户创建成功');
       setStep(1);
-    } catch (error) {
+    } catch {
       message.error('创建失败');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleConfigBroker = async (values: any) => {
+  const handleConfigBroker = async (values: Record<string, unknown>) => {
     setLoading(true);
     try {
       const accounts: Array<{ broker: string; name: string; config: Record<string, unknown> }> = [];

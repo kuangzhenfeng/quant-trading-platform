@@ -1,4 +1,5 @@
 import pytest
+import time
 from app.services.strategy import StrategyEngine
 from app.services.trading import TradingService
 from app.services.market import MarketDataService
@@ -12,10 +13,12 @@ async def test_strategy_register():
     market_service = MarketDataService()
     engine = StrategyEngine(trading_service, market_service)
 
-    strategy = MAStrategy("测试策略", {"symbol": "BTC-USDT", "short_period": 5, "long_period": 20})
-    engine.register("test_strategy", strategy, "okx")
+    strategy_id = f"test_strategy_reg_{int(time.time() * 1000)}"
+    params = {"symbol": "BTC-USDT", "short_period": 5, "long_period": 20}
+    strategy = MAStrategy("测试策略", params)
+    await engine.register(strategy_id, strategy, "okx", params)
 
-    assert "test_strategy" in engine.strategies
+    assert strategy_id in engine.strategies
 
 
 @pytest.mark.asyncio
@@ -25,13 +28,15 @@ async def test_strategy_start_stop():
     market_service = MarketDataService()
     engine = StrategyEngine(trading_service, market_service)
 
-    strategy = MAStrategy("测试策略", {"symbol": "BTC-USDT"})
-    engine.register("test_strategy", strategy, "okx")
+    strategy_id = f"test_strategy_ss_{int(time.time() * 1000)}"
+    params = {"symbol": "BTC-USDT"}
+    strategy = MAStrategy("测试策略", params)
+    await engine.register(strategy_id, strategy, "okx", params)
 
-    success = await engine.start("test_strategy")
+    success = await engine.start(strategy_id)
     assert success
 
-    success = engine.stop("test_strategy")
+    success = await engine.stop(strategy_id)
     assert success
 
 
@@ -42,9 +47,11 @@ async def test_strategy_logs():
     market_service = MarketDataService()
     engine = StrategyEngine(trading_service, market_service)
 
-    strategy = MAStrategy("测试策略", {"symbol": "BTC-USDT"})
-    engine.register("test_strategy", strategy, "okx")
+    strategy_id = f"test_strategy_log_{int(time.time() * 1000)}"
+    params = {"symbol": "BTC-USDT"}
+    strategy = MAStrategy("测试策略", params)
+    await engine.register(strategy_id, strategy, "okx", params)
 
-    logs = engine.get_logs("test_strategy")
+    logs = engine.get_logs(strategy_id)
     assert len(logs) > 0
     assert "均线策略初始化" in logs[0]

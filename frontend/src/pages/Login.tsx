@@ -9,10 +9,6 @@ export default function Login() {
   const navigate = useNavigate();
   const { message } = App.useApp();
 
-  useEffect(() => {
-    checkInitStatus();
-  }, []);
-
   const checkInitStatus = async () => {
     try {
       const res = await fetch('/api/system/init-status');
@@ -20,10 +16,14 @@ export default function Login() {
       if (!data.has_admin) {
         navigate('/setup');
       }
-    } catch (error) {
-      console.error('检查初始化状态失败:', error);
+    } catch {
+      console.error('检查初始化状态失败');
     }
   };
+
+  useEffect(() => {
+    checkInitStatus();
+  }, []);
 
   const handleLogin = async (values: { username: string; password: string }) => {
     setLoading(true);

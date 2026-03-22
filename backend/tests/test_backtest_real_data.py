@@ -27,6 +27,7 @@ async def test_mock_get_klines():
     await adapter.disconnect()
 
 
+@pytest.mark.skip(reason="需要连接 OKX API，CI 环境网络不通")
 @pytest.mark.asyncio
 async def test_okx_get_klines():
     """测试OKX获取真实K线数据（公开API）"""
@@ -77,6 +78,7 @@ async def test_backtest_with_mock_data():
     assert result.total_trades >= 0
 
 
+@pytest.mark.skip(reason="需要连接 OKX API，CI 环境网络不通")
 @pytest.mark.asyncio
 async def test_backtest_with_okx_data():
     """测试使用OKX真实数据回测"""

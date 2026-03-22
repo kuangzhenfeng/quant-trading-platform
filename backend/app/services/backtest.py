@@ -166,5 +166,10 @@ class BacktestContext:
         """记录日志"""
         self.logs.append(message)
 
+    async def log_signal(self, side: str, price: float, reason: str):
+        """记录买卖信号（回测中仅记录日志，不实际下单）"""
+        self.log(f"信号: {side.upper()} @ {price}, 原因: {reason}")
+        return None  # 回测中不返回真实 signal_id
+
 
 backtest_engine = BacktestEngine()

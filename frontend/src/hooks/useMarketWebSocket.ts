@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 interface TickData {
   symbol: string;
@@ -20,7 +20,9 @@ export const useMarketWebSocket = (
 ) => {
   const ws = useRef<WebSocket | null>(null);
   const onTickRef = useRef(onTick);
-  onTickRef.current = onTick;
+  useLayoutEffect(() => {
+    onTickRef.current = onTick;
+  });
 
   useEffect(() => {
     ws.current = new WebSocket(`ws://${window.location.host}/ws/market/${clientId}`);

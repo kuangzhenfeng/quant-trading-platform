@@ -14,7 +14,6 @@ export default function Logs() {
   }, [level]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchLogs();
     const timer = setInterval(fetchLogs, 5000);
     return () => clearInterval(timer);

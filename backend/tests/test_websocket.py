@@ -4,8 +4,9 @@ from app.main import app
 
 client = TestClient(app)
 
+
 def test_websocket_connection():
-    with client.websocket_connect("/ws/test_client") as websocket:
-        websocket.send_json({"type": "test", "data": "hello"})
+    with client.websocket_connect("/ws/market/test_client") as websocket:
+        websocket.send_json({"action": "unknown", "data": "hello"})
         data = websocket.receive_json()
         assert data["type"] == "echo"

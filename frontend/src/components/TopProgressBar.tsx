@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useTradingModeStore } from '../stores/tradingModeStore';
 
 /** 各模式对应的进度条颜色 */
@@ -22,7 +22,7 @@ export default function TopProgressBar() {
   const rafRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (switchingTo) {
       // 开始切换：重置并显示
       setColor(modeColor[switchingTo] ?? '#22d3ee');

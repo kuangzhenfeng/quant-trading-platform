@@ -25,7 +25,7 @@ export default function Settings() {
         values[c.key] = c.value || '';
       });
       form.setFieldsValue(values);
-    } catch (error) {
+    } catch {
       message.error('加载配置失败');
     }
   };
@@ -43,7 +43,7 @@ export default function Settings() {
           await api.post('/system/reset', {});
           message.success('系统已重置');
           setTimeout(() => window.location.href = '/setup', 1000);
-        } catch (error) {
+        } catch {
           message.error('重置失败');
         }
       }
