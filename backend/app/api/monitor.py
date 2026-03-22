@@ -66,10 +66,12 @@ async def get_strategy_status():
                 pos_by_broker_symbol[(row.broker, row.symbol)] = getattr(row, 'unrealized_pnl', 0.0)
 
             # 按 broker+symbol 批量查询成交订单数
+            from sqlalchemy import cast
+            from sqlalchemy import Text
             from app.models.db_models import DBOrder
             order_result = await session.execute(
                 select(DBOrder.broker, DBOrder.symbol, func.count().label("cnt"))
-                .where(DBOrder.status == "filled")
+                .where(cast(DBOrder.status, Text) == "filled")
                 .group_by(DBOrder.broker, DBOrder.symbol)
             )
             trades_by_broker_symbol: dict[tuple[str, str], int] = {}
