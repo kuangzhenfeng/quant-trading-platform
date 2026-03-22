@@ -99,7 +99,7 @@ export default function Setup() {
       // 保存交易模式
       await systemApi.updateConfig([{
         key: 'TRADING_MODE',
-        value: values.TRADING_MODE || 'mock',
+        value: (values.TRADING_MODE as string) || 'mock',
         category: 'trading_mode',
         is_sensitive: false
       }]);
