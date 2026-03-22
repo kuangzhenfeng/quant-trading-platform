@@ -1,31 +1,91 @@
-import { useState } from 'react';
-import { Form, Input, DatePicker, Button, message, Select } from 'antd';
-import { ExperimentOutlined, BarChartOutlined } from '@ant-design/icons';
+import { useState, useEffect } from 'react';
+import { Form, Input, DatePicker, Button, message, Select, Table, Tag } from 'antd';
+import {
+  ExperimentOutlined,
+  BarChartOutlined,
+  ThunderboltOutlined,
+  SortAscendingOutlined,
+  SortDescendingOutlined,
+} from '@ant-design/icons';
 import { backtestApi } from '../services/backtest';
-import type { BacktestResult, BacktestFormValues } from '../types/api';
+import type { BacktestFormValues, StrategyInfo, BatchResult, BacktestResult } from '../types/api';
 import dayjs from 'dayjs';
+import type { TableColumnsType } from 'antd';
+import type { SortOrder } from 'antd/es/table/interface';
+
+interface TableRow extends BatchResult {
+  key: string;
+  rank?: number;
+  isTop?: boolean;
+  isBottom?: boolean;
+}
+
+// 对结果排序并标记最佳/最差
+function sortAndTagResults(
+  results: BatchResult[],
+  sortField: string,
+  sortOrder: SortOrder,
+): TableRow[] {
+  const valid = results.filter(r => r.result !== null);
+  if (sortField && sortOrder) {
+    valid.sort((a, b) => {
+      const aVal = a.result![sortField as keyof BacktestResult] as number;
+      const bVal = b.result![sortField as keyof BacktestResult] as number;
+      return sortOrder === 'ascend' ? aVal - bVal : bVal - aVal;
+    });
+  }
+  return valid.map((r, i) => ({
+    ...r,
+    key: r.strategy_id,
+    rank: i + 1,
+    isTop: i < 3,
+    isBottom: i === valid.length - 1,
+  }));
+}
 
 export default function Backtest() {
   const [form] = Form.useForm();
-  const [result, setResult] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [runAllLoading, setRunAllLoading] = useState(false);
+  const [results, setResults] = useState<BatchResult[]>([]);
+  const [strategies, setStrategies] = useState<StrategyInfo[]>([]);
+  const [sortField, setSortField] = useState<string>('total_return');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('descend');
+
+  // 加载策略列表
+  useEffect(() => {
+    backtestApi.getStrategies().then(data => {
+      setStrategies(data.strategies);
+    }).catch(() => {
+      setStrategies(FALLBACK_STRATEGIES);
+    });
+  }, []);
+
+  // 内部排序用（传递给 Table，由 Table 管理）
+  const sortedData = sortAndTagResults(results, sortField, sortOrder);
 
   const handleRun = async (values: BacktestFormValues) => {
     setLoading(true);
+    setResults([]);
     try {
       const config = {
         strategy_id: values.strategy_id,
         symbol: values.symbol,
         start_date: values.date_range[0].format('YYYY-MM-DD'),
         end_date: values.date_range[1].format('YYYY-MM-DD'),
-        initial_capital: values.initial_capital
+        initial_capital: values.initial_capital,
       };
       const { backtest_id } = await backtestApi.run(config);
-
-      // 等待回测完成并获取结果
       setTimeout(async () => {
         const res = await backtestApi.getResult(backtest_id);
-        setResult(res);
+        const strategy = strategies.find(s => s.strategy_id === values.strategy_id);
+        setResults([{
+          strategy_id: values.strategy_id,
+          name: strategy?.name ?? values.strategy_id,
+          category: strategy?.category ?? '',
+          result: res,
+          error: null,
+        }]);
         setLoading(false);
         message.success('回测完成');
       }, 2000);
@@ -34,6 +94,189 @@ export default function Backtest() {
       message.error('回测失败');
     }
   };
+
+  const handleRunAll = async (values: BacktestFormValues) => {
+    setRunAllLoading(true);
+    setResults([]);
+    try {
+      const config = {
+        strategy_id: 'ma_strategy',
+        symbol: values.symbol,
+        start_date: values.date_range[0].format('YYYY-MM-DD'),
+        end_date: values.date_range[1].format('YYYY-MM-DD'),
+        initial_capital: values.initial_capital,
+      };
+      const data = await backtestApi.runAll(config);
+      setResults(data.results);
+      setRunAllLoading(false);
+      message.success('全部策略回测完成');
+    } catch {
+      setRunAllLoading(false);
+      message.error('批量回测失败');
+    }
+  };
+
+  // 排序变化时更新 state，用于重新计算排名
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleTableChange = (_: any, __: any, sorter: any) => {
+    if (!sorter || !sorter.field) {
+      setSortField('total_return');
+      setSortOrder('descend');
+      return;
+    }
+    setSortField(String(sorter.field));
+    setSortOrder(sorter.order ?? 'descend');
+  };
+
+  const columns: TableColumnsType<TableRow> = [
+    {
+      title: '排名',
+      dataIndex: 'rank',
+      key: 'rank',
+      width: 60,
+      render: (rank: number, row: TableRow) => {
+        if (row.isTop) {
+          const medalColors = ['#f59e0b', '#94a3b8', '#cd7f32'];
+          return (
+            <span style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 13,
+              fontWeight: 700,
+              color: medalColors[rank - 1],
+            }}>
+              #{rank}
+            </span>
+          );
+        }
+        return (
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 13,
+            color: 'var(--text-muted)',
+          }}>
+            #{rank}
+          </span>
+        );
+      },
+    },
+    {
+      title: '策略',
+      dataIndex: 'name',
+      key: 'name',
+      width: 140,
+      render: (name: string, row: TableRow) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+          }}>
+            {name}
+          </span>
+          <Tag
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              padding: '0 5px',
+              lineHeight: '16px',
+              borderRadius: 3,
+              border: 'none',
+              background: categoryColor(row.category),
+              color: '#fff',
+              width: 'fit-content',
+            }}
+          >
+            {row.category}
+          </Tag>
+        </div>
+      ),
+    },
+    {
+      title: '总收益率',
+      dataIndex: ['result', 'total_return'],
+      key: 'total_return',
+      sorter: true,
+      sortOrder: sortField === 'total_return' ? sortOrder : null,
+      width: 120,
+      align: 'right',
+      render: (val: number) => {
+        const pct = val * 100;
+        const color = pct >= 0 ? 'var(--gain)' : 'var(--loss)';
+        const prefix = pct >= 0 ? '+' : '';
+        return (
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 14,
+            fontWeight: 700,
+            color,
+          }}>
+            {prefix}{pct.toFixed(2)}%
+          </span>
+        );
+      },
+    },
+    {
+      title: '最大回撤',
+      dataIndex: ['result', 'max_drawdown'],
+      key: 'max_drawdown',
+      sorter: true,
+      sortOrder: sortField === 'max_drawdown' ? sortOrder : null,
+      width: 110,
+      align: 'right',
+      render: (val: number) => (
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 14,
+          fontWeight: 600,
+          color: 'var(--loss)',
+        }}>
+          -{val >= 0 ? (val * 100).toFixed(2) : val.toFixed(2)}%
+        </span>
+      ),
+    },
+    {
+      title: '胜率',
+      dataIndex: ['result', 'win_rate'],
+      key: 'win_rate',
+      sorter: true,
+      sortOrder: sortField === 'win_rate' ? sortOrder : null,
+      width: 90,
+      align: 'right',
+      render: (val: number) => (
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 14,
+          fontWeight: 600,
+          color: 'var(--amber-400)',
+        }}>
+          {(val * 100).toFixed(1)}%
+        </span>
+      ),
+    },
+    {
+      title: '交易次数',
+      dataIndex: ['result', 'total_trades'],
+      key: 'total_trades',
+      sorter: true,
+      sortOrder: sortField === 'total_trades' ? sortOrder : null,
+      width: 100,
+      align: 'right',
+      render: (val: number) => (
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 14,
+          fontWeight: 600,
+          color: 'var(--cyan-400)',
+        }}>
+          {val}
+        </span>
+      ),
+    },
+  ];
+
+  const hasResults = sortedData.length > 0;
+  const strategyOptions = buildSelectOptions(strategies);
 
   return (
     <div
@@ -97,7 +340,6 @@ export default function Backtest() {
 
         <Form form={form} onFinish={handleRun} layout="vertical">
           <div
-            className="page-grid-2"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(2, 1fr)',
@@ -117,23 +359,19 @@ export default function Backtest() {
                     color: 'var(--text-secondary)',
                   }}
                 >
-                  策略 ID
+                  策略
                 </span>
               }
               initialValue="ma_strategy"
               rules={[{ required: true }]}
             >
               <Select
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 13,
-                }}
-                options={[
-                  { label: 'MA策略', value: 'ma_strategy' },
-                  { label: 'MACD策略', value: 'macd_strategy' },
-                  { label: '布林带策略', value: 'bollinger_strategy' },
-                  { label: 'RSI策略', value: 'rsi_strategy' },
-                ]}
+                showSearch
+                filterOption={(input, option) =>
+                  (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                }
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}
+                options={strategyOptions}
               />
             </Form.Item>
 
@@ -157,10 +395,7 @@ export default function Backtest() {
               rules={[{ required: true }]}
             >
               <Select
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 13,
-                }}
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}
                 options={[
                   { label: 'BTC-USDT', value: 'BTC-USDT' },
                   { label: 'ETH-USDT', value: 'ETH-USDT' },
@@ -240,273 +475,123 @@ export default function Backtest() {
           </div>
 
           <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              icon={<ExperimentOutlined />}
-              style={{
-                height: 42,
-                paddingInline: 32,
-                fontSize: 13,
-                fontFamily: 'var(--font-sans)',
-                fontWeight: 600,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                background: 'linear-gradient(135deg, var(--cyan-400) 0%, var(--cyan-500) 100%)',
-                boxShadow: '0 0 16px rgba(34, 211, 238, 0.35), 0 2px 8px rgba(0,0,0,0.3)',
-                cursor: 'pointer',
-              }}
-            >
-              开始回测
-            </Button>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={loading}
+                icon={<ExperimentOutlined />}
+                style={{
+                  height: 42,
+                  paddingInline: 28,
+                  fontSize: 13,
+                  fontFamily: 'var(--font-sans)',
+                  fontWeight: 600,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'linear-gradient(135deg, var(--cyan-400) 0%, var(--cyan-500) 100%)',
+                  boxShadow: '0 0 16px rgba(34, 211, 238, 0.35), 0 2px 8px rgba(0,0,0,0.3)',
+                }}
+              >
+                运行回测
+              </Button>
+              <Button
+                icon={<ThunderboltOutlined />}
+                onClick={() => {
+                  form.validateFields().then(values => handleRunAll(values));
+                }}
+                loading={runAllLoading}
+                style={{
+                  height: 42,
+                  paddingInline: 28,
+                  fontSize: 13,
+                  fontFamily: 'var(--font-sans)',
+                  fontWeight: 600,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'linear-gradient(135deg, var(--amber-400) 0%, var(--amber-500) 100%)',
+                  border: 'none',
+                  color: '#000',
+                  boxShadow: '0 0 16px rgba(245, 158, 11, 0.3), 0 2px 8px rgba(0,0,0,0.3)',
+                }}
+              >
+                一键回测全部
+              </Button>
+            </div>
           </Form.Item>
         </Form>
       </div>
 
       {/* Results */}
-      {result ? (
+      {hasResults ? (
         <div className="animate-in stagger-2">
+          {/* Section Header */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              justifyContent: 'space-between',
               marginBottom: 16,
             }}
           >
-            <BarChartOutlined style={{ color: 'var(--cyan-400)', fontSize: 15 }} />
-            <span
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BarChartOutlined style={{ color: 'var(--cyan-400)', fontSize: 15 }} />
+              <span
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                回测结果 {sortedData.length > 1 ? `(${sortedData.length} 个策略)` : ''}
+              </span>
+            </div>
+            {/* Sort hint */}
+            <div
               style={{
-                fontFamily: 'var(--font-sans)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontFamily: 'var(--font-mono)',
                 fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                color: 'var(--text-secondary)',
+                color: 'var(--text-muted)',
               }}
             >
-              回测结果
-            </span>
+              {sortOrder === 'descend'
+                ? <SortDescendingOutlined />
+                : <SortAscendingOutlined />
+              }
+              <span>
+                {sortField === 'total_return' ? '按收益率' :
+                 sortField === 'max_drawdown' ? '按回撤' :
+                 sortField === 'win_rate' ? '按胜率' : '按交易次数'} {sortOrder === 'descend' ? '↓' : '↑'}
+              </span>
+            </div>
           </div>
 
-          <div
-            className="page-grid-4"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 16,
+          <Table
+            columns={columns}
+            dataSource={sortedData}
+            pagination={false}
+            onChange={handleTableChange}
+            rowClassName={(record: TableRow) => {
+              let cls = 'backtest-row';
+              if (record.isTop) cls += ' backtest-row-top';
+              if (record.isBottom) cls += ' backtest-row-bottom';
+              return cls;
             }}
-          >
-            {/* 总收益率 */}
-            <div
-              className="apex-stat animate-in stagger-3"
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '20px 24px',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 2,
-                  background: result.total_return >= 0
-                    ? 'var(--gain)'
-                    : 'var(--loss)',
-                  borderRadius: 'var(--radius-md) var(--radius-md) 0 0',
-                }}
-              />
-              <div
-                className="apex-stat-label"
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-secondary)',
-                  marginBottom: 10,
-                }}
-              >
-                总收益率
-              </div>
-              <div
-                className="apex-stat-value"
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 28,
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  color: result.total_return >= 0 ? 'var(--gain)' : 'var(--loss)',
-                }}
-              >
-                {result.total_return >= 0 ? '+' : ''}
-                {(result.total_return * 100).toFixed(2)}%
-              </div>
-            </div>
-
-            {/* 最大回撤 */}
-            <div
-              className="apex-stat animate-in stagger-4"
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '20px 24px',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 2,
-                  background: 'var(--loss)',
-                  borderRadius: 'var(--radius-md) var(--radius-md) 0 0',
-                }}
-              />
-              <div
-                className="apex-stat-label"
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-secondary)',
-                  marginBottom: 10,
-                }}
-              >
-                最大回撤
-              </div>
-              <div
-                className="apex-stat-value"
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 28,
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  color: 'var(--loss)',
-                }}
-              >
-                -{(result.max_drawdown * 100).toFixed(2)}%
-              </div>
-            </div>
-
-            {/* 胜率 */}
-            <div
-              className="apex-stat animate-in stagger-5"
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '20px 24px',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 2,
-                  background: 'var(--amber-400)',
-                  borderRadius: 'var(--radius-md) var(--radius-md) 0 0',
-                }}
-              />
-              <div
-                className="apex-stat-label"
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-secondary)',
-                  marginBottom: 10,
-                }}
-              >
-                胜率
-              </div>
-              <div
-                className="apex-stat-value"
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 28,
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  color: 'var(--amber-400)',
-                }}
-              >
-                {(result.win_rate * 100).toFixed(2)}%
-              </div>
-            </div>
-
-            {/* 总交易次数 */}
-            <div
-              className="apex-stat animate-in stagger-6"
-              style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '20px 24px',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 2,
-                  background: 'var(--cyan-400)',
-                  borderRadius: 'var(--radius-md) var(--radius-md) 0 0',
-                }}
-              />
-              <div
-                className="apex-stat-label"
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-secondary)',
-                  marginBottom: 10,
-                }}
-              >
-                总交易次数
-              </div>
-              <div
-                className="apex-stat-value"
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 28,
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  color: 'var(--cyan-400)',
-                }}
-              >
-                {result.total_trades}
-              </div>
-            </div>
-          </div>
+            style={{
+              background: 'var(--bg-surface)',
+              borderRadius: 'var(--radius-md)',
+              overflow: 'hidden',
+            }}
+          />
         </div>
       ) : (
         /* Empty state */
@@ -539,10 +624,125 @@ export default function Backtest() {
               letterSpacing: '0.04em',
             }}
           >
-            运行回测查看结果
+            配置参数后运行回测，查看策略绩效对比
           </span>
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              marginTop: 4,
+            }}
+          >
+            {FALLBACK_STRATEGIES.slice(0, 5).map(s => (
+              <Tag
+                key={s.strategy_id}
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  border: 'none',
+                  background: categoryColor(s.category),
+                  color: '#fff',
+                }}
+              >
+                {s.name}
+              </Tag>
+            ))}
+            <Tag
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                padding: '2px 8px',
+                borderRadius: 4,
+                border: '1px solid var(--border-default)',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+              }}
+            >
+              +{strategies.length > 5 ? strategies.length - 5 : 11} more
+            </Tag>
+          </div>
         </div>
       )}
+
+      <style>{`
+        .backtest-row-top {
+          background: rgba(34, 211, 238, 0.03) !important;
+        }
+        .backtest-row-top td {
+          background: transparent !important;
+        }
+        .backtest-row-top:hover > td {
+          background: rgba(34, 211, 238, 0.06) !important;
+        }
+        .backtest-row-bottom {
+          background: rgba(248, 113, 113, 0.03) !important;
+        }
+        .backtest-row-bottom td {
+          background: transparent !important;
+        }
+        .backtest-row-bottom:hover > td {
+          background: rgba(248, 113, 113, 0.06) !important;
+        }
+      `}</style>
     </div>
   );
 }
+
+// 分类颜色映射
+function categoryColor(category: string): string {
+  switch (category) {
+    case '趋势跟踪': return 'rgba(34, 211, 238, 0.8)';
+    case '均值回归': return 'rgba(245, 158, 11, 0.8)';
+    case '通道突破': return 'rgba(52, 211, 153, 0.8)';
+    default: return 'rgba(148, 163, 184, 0.6)';
+  }
+}
+
+// 构建带分组的下拉选项
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildSelectOptions(strategies: StrategyInfo[]): any[] {
+  if (strategies.length === 0) {
+    return FALLBACK_STRATEGIES.map(s => ({
+      label: s.name,
+      value: s.strategy_id,
+    }));
+  }
+
+  const groups: Record<string, StrategyInfo[]> = {};
+  for (const s of strategies) {
+    if (!groups[s.category]) groups[s.category] = [];
+    groups[s.category].push(s);
+  }
+
+  return Object.entries(groups).map(([category, items]) => ({
+    label: category,
+    options: items.map(s => ({
+      label: `${s.name} — ${s.description}`,
+      value: s.strategy_id,
+    })),
+  }));
+}
+
+// 内置策略列表（作为降级方案）
+const FALLBACK_STRATEGIES: StrategyInfo[] = [
+  { type: 'ma', strategy_id: 'ma_strategy', name: 'MA', description: '均线交叉', category: '趋势跟踪' },
+  { type: 'macd', strategy_id: 'macd_strategy', name: 'MACD', description: 'MACD 指标', category: '趋势跟踪' },
+  { type: 'bollinger', strategy_id: 'bollinger_strategy', name: 'Bollinger', description: '布林带', category: '均值回归' },
+  { type: 'rsi', strategy_id: 'rsi_strategy', name: 'RSI', description: '相对强弱指标', category: '均值回归' },
+  { type: 'supertrend', strategy_id: 'supertrend_strategy', name: 'Supertrend', description: '超级趋势', category: '趋势跟踪' },
+  { type: 'parabolic', strategy_id: 'parabolic_strategy', name: 'Parabolic SAR', description: '抛物线止损', category: '趋势跟踪' },
+  { type: 'stochastic', strategy_id: 'stochastic_strategy', name: 'Stochastic', description: '随机指标', category: '均值回归' },
+  { type: 'adx', strategy_id: 'adx_strategy', name: 'ADX', description: '平均趋向指数', category: '趋势跟踪' },
+  { type: 'momentum', strategy_id: 'momentum_strategy', name: 'Momentum', description: '动量策略', category: '趋势跟踪' },
+  { type: 'cci', strategy_id: 'cci_strategy', name: 'CCI', description: '顺势指标', category: '均值回归' },
+  { type: 'atr_channel', strategy_id: 'atr_channel_strategy', name: 'ATR Channel', description: 'ATR 通道', category: '通道突破' },
+  { type: 'keltner', strategy_id: 'keltner_strategy', name: 'Keltner', description: '肯特纳通道', category: '通道突破' },
+  { type: 'donchian', strategy_id: 'donchian_strategy', name: 'Donchian', description: '唐奇安通道', category: '通道突破' },
+  { type: 'dual_rsi', strategy_id: 'dual_rsi_strategy', name: 'Dual RSI', description: '双 RSI 策略', category: '均值回归' },
+  { type: 'ma_rsi', strategy_id: 'ma_rsi_strategy', name: 'MA+RSI', description: '均线 RSI 组合', category: '趋势跟踪' },
+  { type: 'ichimoku', strategy_id: 'ichimoku_strategy', name: 'Ichimoku', description: '一目均衡表', category: '趋势跟踪' },
+];

@@ -29,6 +29,9 @@ async def test_monitor_add_order():
 @pytest.mark.asyncio
 async def test_monitor_pnl():
     """测试 PnL 统计"""
+    # 先清理该 broker 的历史持仓，确保测试独立性
+    await monitor_service.clear_positions("okx")
+
     # 更新持仓到数据库
     await monitor_service.update_positions("okx", [
         PositionData(symbol="BTC-USDT", quantity=1.0, avg_price=50000.0, unrealized_pnl=1000.0)

@@ -13,6 +13,7 @@ export interface KlinesResponse {
   symbol: string;
   broker: string;
   interval: string;
+  mode: 'mock' | 'paper' | 'live';
   klines: KlineData[];
 }
 
@@ -23,7 +24,7 @@ export const marketApi = {
       signal ? { signal } : undefined
     );
     if (!data.klines) {
-      throw new Error(data.message || '获取K线数据失败');
+      throw new Error('获取K线数据失败');
     }
     return data;
   },

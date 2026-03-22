@@ -1,6 +1,7 @@
-import axios from 'axios';
+import request from './request';
+import type { StrategyInfo, BatchResult } from '../types/api';
 
-const API_BASE = '/api/backtest';
+const API_BASE = '/backtest';
 
 export interface BacktestConfig {
   strategy_id: string;
@@ -12,12 +13,22 @@ export interface BacktestConfig {
 
 export const backtestApi = {
   run: async (config: BacktestConfig) => {
-    const { data } = await axios.post(`${API_BASE}/run`, config);
+    const { data } = await request.post(`${API_BASE}/run`, config);
     return data;
   },
 
   getResult: async (backtestId: string) => {
-    const { data } = await axios.get(`${API_BASE}/${backtestId}`);
+    const { data } = await request.get(`${API_BASE}/${backtestId}`);
+    return data;
+  },
+
+  getStrategies: async () => {
+    const { data } = await request.get<{ strategies: StrategyInfo[] }>(`${API_BASE}/strategies`);
+    return data;
+  },
+
+  runAll: async (config: BacktestConfig) => {
+    const { data } = await request.post<{ results: BatchResult[] }>(`${API_BASE}/run-all`, config);
     return data;
   }
 };

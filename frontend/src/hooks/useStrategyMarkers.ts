@@ -8,7 +8,7 @@ export function useStrategyMarkers() {
   const [signals, setSignals] = useState<Record<string, StrategySignal[]>>({});
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
   const [sideFilter, setSideFilter] = useState<'all' | 'buy' | 'sell'>('all');
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(true);
 
   const pollingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // 用 ref 保存 symbol，避免闭包问题

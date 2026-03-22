@@ -241,6 +241,7 @@ async def create_and_start_all(req: BatchCreateRequest):
     quantity = 0.01
 
     created = 0
+    enabled = 0
     skipped = 0
     errors: list[str] = []
 
@@ -253,9 +254,37 @@ async def create_and_start_all(req: BatchCreateRequest):
         for symbol in symbols:
             strategy_id = f"{stype}_{req.broker}_{symbol}"
 
-            # 跳过已存在的策略
+            # 检查引擎中的运行状态
+            in_engine = strategy_id in strategy_engine.strategies
+            is_running = in_engine and strategy_engine.strategies[strategy_id][2]
+
             if strategy_id in existing_ids:
-                skipped += 1
+                # 策略已存在
+                if is_running:
+                    # 已启用，跳过
+                    skipped += 1
+                    continue
+
+                if in_engine:
+                    # 已创建但未启用，启用它
+                    await strategy_engine.start(strategy_id)
+                    enabled += 1
+                else:
+                    # 在数据库中但未注册到引擎，重新注册并启用
+                    async with AsyncSessionLocal() as session2:
+                        from sqlalchemy import select
+                        from app.models.db_models import DBStrategyConfig
+                        res = await session2.execute(
+                            select(DBStrategyConfig).where(DBStrategyConfig.strategy_id == strategy_id)
+                        )
+                        config = res.scalar_one_or_none()
+                        if config:
+                            params = config.params or {}
+                            params["symbol"] = params.get("symbol", symbol)
+                            strategy = StrategyRegistry.create(stype, f"{stype}策略", params)
+                            await strategy_engine.register(strategy_id, strategy, req.broker, params)
+                            await strategy_engine.start(strategy_id)
+                            enabled += 1
                 continue
 
             try:
@@ -276,7 +305,7 @@ async def create_and_start_all(req: BatchCreateRequest):
             except Exception as e:
                 errors.append(f"{strategy_id}: {e}")
 
-    return {"created": created, "skipped": skipped, "errors": errors}
+    return {"created": created, "enabled": enabled, "skipped": skipped, "errors": errors}
 
 
 @router.post("/delete-all")

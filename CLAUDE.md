@@ -22,7 +22,7 @@ BrokerAdapter 抽象层统一各平台接口，策略引擎执行量化脚本，
 - Git 规范: 禁止提交代码，禁止使用git commit命令
 - 用 playwright MCP/skill 验证功能
 - 实盘总额度必须 < 10 美元
-- 严格区分 Mock/模拟盘/实盘，不做降级处理
+- 严格区分 Mock/模拟盘/实盘，数据不做获取失败后不降级到Mock
 - 默认登陆账号密码为admin/admin
 - 后端端口为9000
 - 开发阶段不使用docker部署

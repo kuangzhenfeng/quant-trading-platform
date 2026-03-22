@@ -94,6 +94,22 @@ export interface BacktestResult {
   total_trades: number;
 }
 
+export interface StrategyInfo {
+  type: string;
+  strategy_id: string;
+  name: string;
+  description: string;
+  category: string;
+}
+
+export interface BatchResult {
+  strategy_id: string;
+  name: string;
+  category: string;
+  result: BacktestResult | null;
+  error: string | null;
+}
+
 // 表单类型定义
 export interface BacktestFormValues {
   strategy_id: string;

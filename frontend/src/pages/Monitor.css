@@ -460,3 +460,40 @@
     font-size: 34px !important;
   }
 }
+
+/* ─── Strategy Stats Strip ─────────────────────────────────────────────────── */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.strategy-stats-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  transition: border-color 0.3s ease;
+}
+
+.strategy-stats-strip:hover {
+  border-color: rgba(34, 211, 238, 0.15);
+}
+
+/* 响应式: 768px 以下 2 列 */
+@media (max-width: 768px) {
+  .strategy-stats-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .strategy-stats-strip {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px 12px;
+  }
+}

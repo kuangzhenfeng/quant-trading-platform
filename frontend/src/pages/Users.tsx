@@ -30,13 +30,13 @@ export default function Users() {
     message.success('用户添加成功');
     setModalOpen(false);
     form.resetFields();
-    fetchUsers();
+    void fetchUsers();
   };
 
   const handleRemove = async (username: string) => {
     await userApi.delete(username);
     message.success('用户删除成功');
-    await fetchUsers();
+    void fetchUsers();
   };
 
   const columns = [
@@ -80,6 +80,7 @@ export default function Users() {
         return (
           <Button
             size="small"
+            className="users-delete-btn"
             onClick={() => handleRemove(record.username)}
             disabled={isCurrentUser}
             style={{
@@ -102,36 +103,71 @@ export default function Users() {
   ];
 
   return (
-    <div className="page-content" style={{ padding: '32px 32px 48px', minHeight: '100vh', background: 'var(--bg-base)' }}>
-      <div className="page-header animate-in stagger-1">
-        <div>
-          <h1 className="page-title">Users</h1>
-          <p className="page-subtitle">用户管理</p>
-        </div>
-      </div>
+    <>
+      <style>{`
+        .users-card {
+          position: relative;
+        }
+        .users-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--cyan-400) 30%, transparent), transparent);
+          pointer-events: none;
+        }
+        [data-theme="light"] .users-card {
+          background: var(--bg-elevated);
+        }
+        [data-theme="light"] .users-card::before {
+          background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--cyan-400) 20%, transparent), transparent);
+        }
+        .users-table .ant-table-thead > tr > th {
+          background: rgba(34, 211, 238, 0.04) !important;
+          border-bottom: 1px solid var(--border-subtle) !important;
+        }
+        [data-theme="light"] .users-table .ant-table-thead > tr > th {
+          background: rgba(245, 158, 11, 0.04) !important;
+        }
+        .users-table .ant-table-tbody > tr:hover > td {
+          background: rgba(34, 211, 238, 0.03) !important;
+        }
+        [data-theme="light"] .users-table .ant-table-tbody > tr:hover > td {
+          background: rgba(245, 158, 11, 0.03) !important;
+        }
+        .users-table .ant-table-tbody > tr:nth-child(even) > td {
+          background: transparent;
+        }
+        [data-theme="light"] .users-table .ant-table-tbody > tr:nth-child(even) > td {
+          background: rgba(0, 0, 0, 0.015);
+        }
+        [data-theme="light"] .users-table .ant-table-tbody > tr:nth-child(even):hover > td {
+          background: rgba(245, 158, 11, 0.03) !important;
+        }
+        .users-delete-btn:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--loss) 16%, transparent) !important;
+          border-color: color-mix(in srgb, var(--loss) 40%, transparent) !important;
+        }
+        [data-theme="light"] .users-delete-btn:hover:not(:disabled) {
+          background: rgba(220, 38, 38, 0.12) !important;
+          border-color: rgba(220, 38, 38, 0.35) !important;
+        }
+        [data-theme="light"] .add-user-btn {
+          box-shadow: 0 0 12px color-mix(in srgb, var(--amber-500) 30%, transparent) !important;
+        }
+      `}</style>
 
-      <div
-        className="animate-in stagger-2"
-        style={{
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-md)',
-          overflow: 'hidden',
-        }}
-      >
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '20px 24px',
-          borderBottom: '1px solid var(--border-subtle)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div className="page-content" style={{ padding: '32px 32px 48px', minHeight: '100vh', background: 'var(--bg-base)' }}>
+        {/* Page Header */}
+        <div className="page-header animate-in stagger-1">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 32,
               height: 32,
               borderRadius: 'var(--radius-sm)',
-              background: 'color-mix(in srgb, var(--cyan-400) 12%, transparent)',
+              background: 'color-mix(in srgb, var(--cyan-400) 10%, transparent)',
               border: '1px solid color-mix(in srgb, var(--cyan-400) 25%, transparent)',
               display: 'flex',
               alignItems: 'center',
@@ -142,162 +178,204 @@ export default function Users() {
               <TeamOutlined />
             </div>
             <div>
+              <h1 className="page-title">Users</h1>
+              <p className="page-subtitle">用户管理</p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className="users-card animate-in stagger-2"
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Card Header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '20px 24px',
+            borderBottom: '1px solid var(--border-subtle)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
-                fontFamily: 'var(--font-sans)',
+                width: 32,
+                height: 32,
+                borderRadius: 'var(--radius-sm)',
+                background: 'color-mix(in srgb, var(--cyan-400) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--cyan-400) 25%, transparent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--cyan-400)',
                 fontSize: 14,
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-                letterSpacing: '0.1px',
               }}>
-                用户列表
+                <TeamOutlined />
               </div>
-              <div style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 12,
-                color: 'var(--text-muted)',
-                marginTop: 1,
-              }}>
-                {users.length} 个用户
-              </div>
-            </div>
-          </div>
-
-          <Button
-            icon={<PlusOutlined />}
-            onClick={() => setModalOpen(true)}
-            style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: 13,
-              fontWeight: 600,
-              color: 'var(--bg-base)',
-              background: 'var(--cyan-400)',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              height: 34,
-              paddingInline: 16,
-              letterSpacing: '0.3px',
-              boxShadow: '0 0 12px color-mix(in srgb, var(--cyan-400) 35%, transparent)',
-              cursor: 'pointer',
-            }}
-          >
-            添加用户
-          </Button>
-        </div>
-
-        <div style={{ padding: '0 0 4px' }}>
-          <Table
-            dataSource={users}
-            columns={columns}
-            rowKey="username"
-            pagination={false}
-            locale={{
-              emptyText: (
+              <div>
                 <div style={{
-                  padding: '48px 0',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 12,
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  letterSpacing: '0.1px',
                 }}>
-                  <TeamOutlined style={{ fontSize: 32, color: 'var(--text-muted)' }} />
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--text-muted)' }}>
-                    暂无用户，点击右上角添加
-                  </span>
+                  用户列表
                 </div>
-              ),
-            }}
-          />
-        </div>
-      </div>
-
-      <Modal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 'var(--radius-sm)',
-              background: 'color-mix(in srgb, var(--cyan-400) 12%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--cyan-400) 25%, transparent)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--cyan-400)',
-              fontSize: 13,
-            }}>
-              <PlusOutlined />
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 12,
+                  color: 'var(--text-muted)',
+                  marginTop: 1,
+                }}>
+                  {users.length} 个用户
+                </div>
+              </div>
             </div>
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
-              添加用户
-            </span>
-          </div>
-        }
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={() => form.submit()}
-        okText="确认添加"
-        cancelText="取消"
-        okButtonProps={{
-          style: {
-            fontFamily: 'var(--font-sans)',
-            fontWeight: 600,
-            fontSize: 13,
-            background: 'var(--cyan-400)',
-            borderColor: 'var(--cyan-400)',
-            color: 'var(--bg-base)',
-            letterSpacing: '0.3px',
-          },
-        }}
-        cancelButtonProps={{
-          style: {
-            fontFamily: 'var(--font-sans)',
-            fontWeight: 500,
-            fontSize: 13,
-            color: 'var(--text-secondary)',
-            borderColor: 'var(--border-default)',
-          },
-        }}
-      >
-        <Form form={form} onFinish={handleAdd} layout="vertical" style={{ marginTop: 20 }}>
-          <Form.Item
-            name="username"
-            label={
-              <span style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 12,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                color: 'var(--text-secondary)',
-              }}>
-                用户名
-              </span>
-            }
-            rules={[{ required: true, message: '请输入用户名' }]}
-          >
-            <Input placeholder="输入用户名" />
-          </Form.Item>
 
-          <Form.Item
-            name="password"
-            label={
-              <span style={{
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() => setModalOpen(true)}
+              className="add-user-btn"
+              style={{
                 fontFamily: 'var(--font-sans)',
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                color: 'var(--text-secondary)',
+                color: 'var(--bg-base)',
+                background: 'var(--cyan-400)',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                height: 34,
+                paddingInline: 16,
+                letterSpacing: '0.3px',
+                boxShadow: '0 0 12px color-mix(in srgb, var(--cyan-400) 35%, transparent)',
+                cursor: 'pointer',
+              }}
+            >
+              添加用户
+            </Button>
+          </div>
+
+          <div style={{ padding: '0 0 4px' }}>
+            <Table
+              className="users-table"
+              dataSource={users}
+              columns={columns}
+              rowKey="username"
+              pagination={false}
+              locale={{
+                emptyText: (
+                  <div style={{
+                    padding: '48px 0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}>
+                    <TeamOutlined style={{ fontSize: 32, color: 'var(--text-muted)' }} />
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--text-muted)' }}>
+                      暂无用户，点击右上角添加
+                    </span>
+                  </div>
+                ),
+              }}
+            />
+          </div>
+        </div>
+
+        <Modal
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 28,
+                height: 28,
+                borderRadius: 'var(--radius-sm)',
+                background: 'color-mix(in srgb, var(--cyan-400) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--cyan-400) 25%, transparent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--cyan-400)',
+                fontSize: 13,
               }}>
-                密码
+                <PlusOutlined />
+              </div>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+                添加用户
               </span>
-            }
-            rules={[{ required: true, message: '请输入密码' }]}
-          >
-            <Input.Password placeholder="输入密码" />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </div>
+            </div>
+          }
+          open={modalOpen}
+          onCancel={() => setModalOpen(false)}
+          onOk={() => form.submit()}
+          okText="确认添加"
+          cancelText="取消"
+          okButtonProps={{
+            style: {
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 600,
+              fontSize: 13,
+              background: 'var(--cyan-400)',
+              borderColor: 'var(--cyan-400)',
+              color: 'var(--bg-base)',
+              letterSpacing: '0.3px',
+            },
+          }}
+          cancelButtonProps={{
+            style: {
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 500,
+              fontSize: 13,
+              color: 'var(--text-secondary)',
+              borderColor: 'var(--border-default)',
+            },
+          }}
+        >
+          <Form form={form} onFinish={handleAdd} layout="vertical" style={{ marginTop: 20 }}>
+            <Form.Item
+              name="username"
+              label={
+                <span style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: 'var(--text-secondary)',
+                }}>
+                  用户名
+                </span>
+              }
+              rules={[{ required: true, message: '请输入用户名' }]}
+            >
+              <Input placeholder="输入用户名" />
+            </Form.Item>
+
+            <Form.Item
+              name="password"
+              label={
+                <span style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: 'var(--text-secondary)',
+                }}>
+                  密码
+                </span>
+              }
+              rules={[{ required: true, message: '请输入密码' }]}
+            >
+              <Input.Password placeholder="输入密码" />
+            </Form.Item>
+          </Form>
+        </Modal>
+      </div>
+    </>
   );
 }

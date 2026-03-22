@@ -35,6 +35,12 @@ class MonitorService:
             for pos in positions:
                 await repo.upsert(pos, broker)
 
+    async def clear_positions(self, broker: str):
+        """清空指定 broker 的持仓"""
+        async with AsyncSessionLocal() as session:
+            repo = PositionRepository(session)
+            await repo.clear(broker)
+
     async def get_pnl_summary(self, broker: str | None = None) -> Dict:
         """获取 PnL 汇总"""
         positions: List[PositionData] = []

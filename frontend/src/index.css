@@ -1285,3 +1285,30 @@ body {
 .animate-in {
   animation: fadeSlideIn 0.5s var(--ease-out) both;
 }
+
+/* ───── Backtest Table ───── */
+.ant-table-column-sorter {
+  color: var(--text-muted) !important;
+}
+
+.ant-table-column-sorter-up.active,
+.ant-table-column-sorter-down.active {
+  color: var(--cyan-400) !important;
+}
+
+.ant-table-thead > tr > th.ant-table-column-has-sorters:hover {
+  background: rgba(34, 211, 238, 0.06) !important;
+}
+
+.backtest-row-top > td {
+  background: transparent !important;
+}
+.backtest-row-top:hover > td {
+  background: rgba(34, 211, 238, 0.06) !important;
+}
+.backtest-row-bottom > td {
+  background: transparent !important;
+}
+.backtest-row-bottom:hover > td {
+  background: rgba(248, 113, 113, 0.06) !important;
+}

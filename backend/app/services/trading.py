@@ -71,7 +71,18 @@ class TradingService:
             elif settings.trading_mode in (TradingMode.PAPER, TradingMode.LIVE):
                 from app.adapters.factory import AdapterFactory
                 mode = TradingMode.PAPER if settings.trading_mode == TradingMode.PAPER else TradingMode.LIVE
-                adapter = AdapterFactory.create(broker, {}, mode)
+                # 从数据库加载活跃账户配置
+                from app.services.account import account_service
+                accounts = await account_service.list_accounts()
+                account_config = {}
+                for acc in accounts:
+                    if acc.active:
+                        is_paper_value = acc.config.get('is_paper')
+                        is_paper = is_paper_value == 'true' or is_paper_value is True
+                        if (mode == TradingMode.PAPER and is_paper) or (mode == TradingMode.LIVE and not is_paper):
+                            account_config = acc.config
+                            break
+                adapter = AdapterFactory.create(broker, account_config, mode)
                 await adapter.connect()
                 self.register_adapter(broker, adapter)
                 mode_name = "Paper" if mode == TradingMode.PAPER else "Live"
@@ -141,7 +152,19 @@ class TradingService:
         else:
             from app.adapters.factory import AdapterFactory
             mode = TradingMode.PAPER if settings.trading_mode == TradingMode.PAPER else TradingMode.LIVE
-            adapter = AdapterFactory.create(broker, {}, mode)
+            # 从数据库加载活跃账户配置
+            from app.services.account import account_service
+            accounts = await account_service.list_accounts()
+            account_config = {}
+            for acc in accounts:
+                if acc.active:
+                    is_paper_value = acc.config.get('is_paper')
+                    is_paper = is_paper_value == 'true' or is_paper_value is True
+                    if (settings.trading_mode == TradingMode.PAPER and is_paper) or \
+                       (settings.trading_mode == TradingMode.LIVE and not is_paper):
+                        account_config = acc.config
+                        break
+            adapter = AdapterFactory.create(broker, account_config, mode)
 
         await adapter.connect()
         self.adapters[broker] = adapter

@@ -1,11 +1,190 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Select, Button, InputNumber, Radio, Table, App, Alert, Tag, Tabs } from 'antd';
+import { Select, Button, InputNumber, Radio, Table, App, Tag, Tabs } from 'antd';
 import { ThunderboltOutlined, WalletOutlined, DollarOutlined, LockOutlined, SwapOutlined, HistoryOutlined } from '@ant-design/icons';
 import { tradingApi, type PositionData, type AccountData, type OrderData } from '../services/trading';
 import type { ApiError } from '../types/api';
 import { useTradingModeStore } from '../stores/tradingModeStore';
 import { useBrokerStore } from '../stores/brokerStore';
 import axios from 'axios';
+
+/* ─── Local styles ─── */
+const localStyles = `
+  /* Mode Alert — custom style with left border */
+  .mode-alert-live {
+    border-radius: 10px !important;
+    border: 1px solid rgba(248, 113, 113, 0.2) !important;
+    border-left: 4px solid var(--loss) !important;
+    background: rgba(248, 113, 113, 0.08) !important;
+    padding: 12px 20px !important;
+  }
+
+  .mode-alert-paper {
+    border-radius: 10px !important;
+    border: 1px solid rgba(251, 191, 36, 0.2) !important;
+    border-left: 4px solid var(--amber-400) !important;
+    background: rgba(251, 191, 36, 0.08) !important;
+    padding: 12px 20px !important;
+  }
+
+  .mode-alert-mock {
+    border-radius: 10px !important;
+    border: 1px solid rgba(52, 211, 153, 0.2) !important;
+    border-left: 4px solid var(--gain) !important;
+    background: rgba(52, 211, 153, 0.08) !important;
+    padding: 12px 20px !important;
+  }
+
+  /* Account stat card — dark */
+  .apex-stat-trading {
+    padding: 18px 20px;
+    background: rgba(22, 24, 31, 0.75) !important;
+    border: 1px solid var(--border-default) !important;
+    border-radius: var(--radius-md);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.35s var(--ease-out);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+  }
+
+  .apex-stat-trading::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan-400), transparent);
+    animation: scan-line-trading 4s linear infinite;
+    opacity: 0.5;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  @keyframes scan-line-trading {
+    0%   { left: -100%; }
+    100% { left: 200%; }
+  }
+
+  .apex-stat-trading:hover {
+    border-color: var(--border-accent) !important;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 32px rgba(34, 211, 238, 0.08), 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Buy/Sell Radio Button — dark mode */
+  .radio-buy-dark.ant-radio-button-wrapper-checked {
+    background: var(--gain) !important;
+    border-color: var(--gain) !important;
+    color: #fff !important;
+  }
+
+  .radio-sell-dark.ant-radio-button-wrapper-checked {
+    background: var(--loss) !important;
+    border-color: var(--loss) !important;
+    color: #fff !important;
+  }
+
+  /* Order history buy/sell tag */
+  .tag-buy {
+    background: rgba(52, 211, 153, 0.12) !important;
+    border: 1px solid rgba(52, 211, 153, 0.3) !important;
+    color: var(--gain) !important;
+  }
+
+  .tag-sell {
+    background: rgba(248, 113, 113, 0.12) !important;
+    border: 1px solid rgba(248, 113, 113, 0.3) !important;
+    color: var(--loss) !important;
+  }
+
+  /* Cancel button — outlined */
+  .btn-cancel-outline {
+    font-weight: 600 !important;
+    border: 1px solid var(--loss) !important;
+    color: var(--loss) !important;
+    background: transparent !important;
+    border-radius: var(--radius-sm) !important;
+  }
+
+  .btn-cancel-outline:hover {
+    background: rgba(248, 113, 113, 0.08) !important;
+  }
+
+  /* Light theme overrides */
+  [data-theme="light"] .apex-stat-trading {
+    background: var(--bg-surface) !important;
+    border-color: var(--border-default) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  [data-theme="light"] .apex-stat-trading:hover {
+    border-color: var(--border-accent) !important;
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06) !important;
+  }
+
+  [data-theme="light"] .mode-alert-live {
+    background: rgba(220, 38, 38, 0.06) !important;
+    border-color: rgba(220, 38, 38, 0.2) !important;
+    border-left-color: var(--loss) !important;
+  }
+
+  [data-theme="light"] .mode-alert-paper {
+    background: rgba(245, 158, 11, 0.06) !important;
+    border-color: rgba(245, 158, 11, 0.2) !important;
+    border-left-color: var(--amber-400) !important;
+  }
+
+  [data-theme="light"] .mode-alert-mock {
+    background: rgba(5, 150, 105, 0.06) !important;
+    border-color: rgba(5, 150, 105, 0.2) !important;
+    border-left-color: var(--gain) !important;
+  }
+
+  [data-theme="light"] .tag-buy {
+    background: rgba(5, 150, 105, 0.1) !important;
+    border-color: rgba(5, 150, 105, 0.25) !important;
+    color: var(--gain) !important;
+  }
+
+  [data-theme="light"] .tag-sell {
+    background: rgba(220, 38, 38, 0.1) !important;
+    border-color: rgba(220, 38, 38, 0.25) !important;
+    color: var(--loss) !important;
+  }
+
+  [data-theme="light"] .btn-cancel-outline {
+    border-color: rgba(220, 38, 38, 0.4) !important;
+    color: var(--loss) !important;
+  }
+
+  [data-theme="light"] .btn-cancel-outline:hover {
+    background: rgba(220, 38, 38, 0.06) !important;
+  }
+
+  [data-theme="light"] .radio-buy-dark.ant-radio-button-wrapper-checked {
+    background: #059669 !important;
+    border-color: #059669 !important;
+    color: #fff !important;
+  }
+
+  [data-theme="light"] .radio-sell-dark.ant-radio-button-wrapper-checked {
+    background: #dc2626 !important;
+    border-color: #dc2626 !important;
+    color: #fff !important;
+  }
+
+  [data-theme="light"] .apex-stat-trading::before {
+    background: linear-gradient(90deg, transparent, var(--cyan-400), transparent);
+  }
+`;
+
+const modeAlertClass: Record<string, string> = {
+  live: 'mode-alert-live',
+  paper: 'mode-alert-paper',
+  mock: 'mode-alert-mock',
+};
 
 export default function Trading() {
   const { message } = App.useApp();
@@ -178,11 +357,10 @@ export default function Trading() {
       key: 'side',
       width: 80,
       render: (v: string) => (
-        <Tag color={v === 'buy' ? 'success' : 'error'} style={{
-          fontWeight: 600,
-          background: v === 'buy' ? 'rgba(52, 211, 153, 0.12)' : 'rgba(248, 113, 113, 0.12)',
-          borderColor: v === 'buy' ? 'rgba(52, 211, 153, 0.3)' : 'rgba(248, 113, 113, 0.3)',
-        }}>
+        <Tag
+          className={v === 'buy' ? 'tag-buy' : 'tag-sell'}
+          style={{ fontWeight: 600, margin: 0 }}
+        >
           {v === 'buy' ? '买入' : '卖出'}
         </Tag>
       )
@@ -248,9 +426,8 @@ export default function Trading() {
           return (
             <Button
               size="small"
-              danger
               onClick={() => handleCancelOrder(record.order_id)}
-              style={{ fontWeight: 600 }}
+              className="btn-cancel-outline"
             >
               撤单
             </Button>
@@ -261,246 +438,320 @@ export default function Trading() {
     }
   ];
 
-  const modeConfig: Record<string, { type: 'error' | 'warning' | 'info'; msg: string; icon: string }> = {
-    live: { type: 'error', msg: '真实盘模式 — 真实资金交易，请谨慎操作', icon: '🔴' },
-    paper: { type: 'warning', msg: '模拟盘模式 — 真实行情，模拟订单', icon: '🟡' },
-    mock: { type: 'info', msg: 'Mock 模式 — 完全模拟环境', icon: '🟢' },
+  const modeConfig: Record<string, { msg: string; icon: string }> = {
+    live: { msg: '真实盘模式 — 真实资金交易，请谨慎操作', icon: '🔴' },
+    paper: { msg: '模拟盘模式 — 真实行情，模拟订单', icon: '🟡' },
+    mock: { msg: 'Mock 模式 — 完全模拟环境', icon: '🟢' },
   };
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">Trading</h1>
-        <p className="page-subtitle">下单交易与持仓管理</p>
-      </div>
-
-      <Alert
-        type={modeConfig[mode].type}
-        description={<span style={{ fontWeight: 600 }}>{modeConfig[mode].icon} {modeConfig[mode].msg}</span>}
-        style={{ marginBottom: 20, borderRadius: 'var(--radius-md)' }}
-        banner
-      />
-
-      {/* Account Stats */}
-      <div className="stats-grid-3 animate-in" style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: 12,
-        marginBottom: 20,
-      }}>
-        {[
-          { label: '总资产', value: account?.balance || 0, icon: <WalletOutlined />, color: 'var(--cyan-400)', bg: 'rgba(34, 211, 238, 0.1)' },
-          { label: '可用资金', value: account?.available || 0, icon: <DollarOutlined />, color: 'var(--gain)', bg: 'var(--gain-muted)' },
-          { label: '冻结资金', value: account?.frozen || 0, icon: <LockOutlined />, color: 'var(--text-tertiary)', bg: 'rgba(148, 163, 184, 0.08)' },
-        ].map((item, i) => (
-          <div key={item.label} className={`apex-stat animate-in stagger-${i + 1}`}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <span style={{ color: item.color, fontSize: 14 }}>{item.icon}</span>
-              <span className="apex-stat-label" style={{ marginBottom: 0 }}>{item.label}</span>
-            </div>
-            <div className="apex-stat-value" style={{ fontSize: 22, color: item.color }}>
-              {item.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Order Panel & Order History Tabs */}
-      <div className="animate-in stagger-3">
-        <Tabs
-          defaultActiveKey="order"
-          items={[
-            {
-              key: 'order',
-              label: (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <SwapOutlined />
-                  下单交易
-                </span>
-              ),
-              children: (
-                <div style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: 24,
-                  marginBottom: 20,
-                }}>
-                  <div style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: 'var(--text-secondary)',
-                    marginBottom: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontFamily: 'var(--font-sans)',
-                  }}>
-                    <ThunderboltOutlined style={{ color: 'var(--cyan-400)' }} />
-                    下单面板
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {/* Row 1: Symbol */}
-                    <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>标的</span>
-                        <Select value={symbol} onChange={setSymbol} style={{ width: 160 }}>
-                          {broker === 'okx' && (
-                            <>
-                              <Select.Option value="BTC-USDT">BTC-USDT</Select.Option>
-                              <Select.Option value="ETH-USDT">ETH-USDT</Select.Option>
-                            </>
-                          )}
-                          {broker === 'guojin' && (
-                            <>
-                              <Select.Option value="600000">600000</Select.Option>
-                              <Select.Option value="000001">000001</Select.Option>
-                            </>
-                          )}
-                          {broker === 'moomoo' && (
-                            <>
-                              <Select.Option value="AAPL">AAPL</Select.Option>
-                              <Select.Option value="TSLA">TSLA</Select.Option>
-                            </>
-                          )}
-                        </Select>
-                      </div>
-                    </div>
-
-                    {/* Row 2: Side & Type */}
-                    <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>方向</span>
-                        <Radio.Group value={side} onChange={e => setSide(e.target.value)} buttonStyle="solid">
-                          <Radio.Button value="buy" style={side === 'buy' ? { background: 'var(--gain)', borderColor: 'var(--gain)' } : {}}>
-                            买入
-                          </Radio.Button>
-                          <Radio.Button value="sell" style={side === 'sell' ? { background: 'var(--loss)', borderColor: 'var(--loss)' } : {}}>
-                            卖出
-                          </Radio.Button>
-                        </Radio.Group>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>类型</span>
-                        <Radio.Group value={orderType} onChange={e => setOrderType(e.target.value)} buttonStyle="solid">
-                          <Radio.Button value="limit">限价</Radio.Button>
-                          <Radio.Button value="market">市价</Radio.Button>
-                        </Radio.Group>
-                      </div>
-                    </div>
-
-                    {/* Row 3: Quantity & Price */}
-                    <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>数量</span>
-                        <InputNumber value={quantity} onChange={v => setQuantity(v || 0)} min={0} step={0.01} style={{ width: 130 }} />
-                      </div>
-                      {orderType === 'limit' && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>价格</span>
-                          <InputNumber value={price} onChange={v => setPrice(v || 0)} min={0} step={0.01} style={{ width: 130 }} />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Submit */}
-                    <Button
-                      type="primary"
-                      onClick={handlePlaceOrder}
-                      loading={loading}
-                      size="large"
-                      style={{
-                        width: '100%',
-                        maxWidth: 280,
-                        height: 44,
-                        fontWeight: 700,
-                        fontSize: 14,
-                        letterSpacing: '0.5px',
-                        background: side === 'buy'
-                          ? 'linear-gradient(135deg, var(--gain), #059669)'
-                          : 'linear-gradient(135deg, var(--loss), #dc2626)',
-                        border: 'none',
-                        boxShadow: side === 'buy'
-                          ? '0 4px 16px rgba(52, 211, 153, 0.3)'
-                          : '0 4px 16px rgba(248, 113, 113, 0.3)',
-                      }}
-                    >
-                      {side === 'buy' ? '买入' : '卖出'} {symbol}
-                    </Button>
-                  </div>
-                </div>
-              ),
-            },
-            {
-              key: 'history',
-              label: (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <HistoryOutlined />
-                  订单历史
-                </span>
-              ),
-              children: (
-                <div style={{
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  overflow: 'hidden',
-                  marginBottom: 20,
-                }}>
-                  <Table
-                    dataSource={orders}
-                    columns={orderColumns}
-                    rowKey="order_id"
-                    pagination={{ pageSize: 10, showSizeChanger: true }}
-                    loading={ordersLoading}
-                    locale={{
-                      emptyText: (
-                        <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-                          暂无订单记录
-                        </div>
-                      )
-                    }}
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
-      </div>
-
-      {/* Positions */}
-      <div className="animate-in stagger-5" style={{
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-md)',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          padding: '14px 24px',
-          borderBottom: '1px solid var(--border-default)',
-          fontSize: 13,
-          fontWeight: 700,
-          color: 'var(--text-secondary)',
-          fontFamily: 'var(--font-sans)',
-        }}>
-          持仓
+    <>
+      <style>{localStyles}</style>
+      <div>
+        <div className="page-header">
+          <h1 className="page-title">Trading</h1>
+          <p className="page-subtitle">下单交易与持仓管理</p>
         </div>
-        <Table
-          dataSource={positions}
-          columns={positionColumns}
-          rowKey="symbol"
-          pagination={false}
-          style={{ background: 'transparent' }}
-          locale={{
-            emptyText: (
-              <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-                暂无持仓
+
+        {/* Mode Alert */}
+        <div className={`${modeAlertClass[mode]} animate-in`} style={{ marginBottom: 20 }}>
+          <span style={{ fontWeight: 600 }}>
+            {modeConfig[mode].icon} {modeConfig[mode].msg}
+          </span>
+        </div>
+
+        {/* Account Stats */}
+        <div className="animate-in" style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 12,
+          marginBottom: 20,
+        }}>
+          {[
+            { label: '总资产', value: account?.balance || 0, icon: <WalletOutlined />, color: 'var(--cyan-400)' },
+            { label: '可用资金', value: account?.available || 0, icon: <DollarOutlined />, color: 'var(--gain)' },
+            { label: '冻结资金', value: account?.frozen || 0, icon: <LockOutlined />, color: 'var(--text-tertiary)' },
+          ].map((item, i) => (
+            <div key={item.label} className={`apex-stat-trading animate-in stagger-${i + 1}`}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span style={{ color: item.color, fontSize: 14 }}>{item.icon}</span>
+                <span style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--text-tertiary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1.2px',
+                }}>
+                  {item.label}
+                </span>
               </div>
-            )
-          }}
-        />
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 22,
+                fontWeight: 700,
+                color: item.color,
+                lineHeight: 1.2,
+              }}>
+                {item.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Order Panel & Order History Tabs */}
+        <div className="animate-in stagger-3">
+          <Tabs
+            defaultActiveKey="order"
+            items={[
+              {
+                key: 'order',
+                label: (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <SwapOutlined />
+                    下单交易
+                  </span>
+                ),
+                children: (
+                  <div style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 10,
+                    padding: 24,
+                    marginBottom: 20,
+                  }}>
+                    {/* Panel header */}
+                    <div style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: 'var(--text-secondary)',
+                      marginBottom: 20,
+                      paddingBottom: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontFamily: 'var(--font-sans)',
+                      borderBottom: '1px solid var(--border-subtle)',
+                    }}>
+                      <ThunderboltOutlined style={{ color: 'var(--cyan-400)' }} />
+                      下单面板
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {/* Row 1: Symbol */}
+                      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            fontSize: 11,
+                            color: 'var(--text-tertiary)',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            fontFamily: 'var(--font-mono)',
+                          }}>
+                            标的
+                          </span>
+                          <Select value={symbol} onChange={setSymbol} style={{ width: 160 }}>
+                            {broker === 'okx' && (
+                              <>
+                                <Select.Option value="BTC-USDT">BTC-USDT</Select.Option>
+                                <Select.Option value="ETH-USDT">ETH-USDT</Select.Option>
+                              </>
+                            )}
+                            {broker === 'guojin' && (
+                              <>
+                                <Select.Option value="600000">600000</Select.Option>
+                                <Select.Option value="000001">000001</Select.Option>
+                              </>
+                            )}
+                            {broker === 'moomoo' && (
+                              <>
+                                <Select.Option value="AAPL">AAPL</Select.Option>
+                                <Select.Option value="TSLA">TSLA</Select.Option>
+                              </>
+                            )}
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Row 2: Side & Type */}
+                      <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            fontSize: 11,
+                            color: 'var(--text-tertiary)',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            fontFamily: 'var(--font-mono)',
+                          }}>
+                            方向
+                          </span>
+                          <Radio.Group value={side} onChange={e => setSide(e.target.value)} buttonStyle="solid">
+                            <Radio.Button
+                              value="buy"
+                              className={side === 'buy' ? 'radio-buy-dark' : ''}
+                              style={side === 'buy' ? {} : {}}
+                            >
+                              买入
+                            </Radio.Button>
+                            <Radio.Button
+                              value="sell"
+                              className={side === 'sell' ? 'radio-sell-dark' : ''}
+                              style={side === 'sell' ? {} : {}}
+                            >
+                              卖出
+                            </Radio.Button>
+                          </Radio.Group>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            fontSize: 11,
+                            color: 'var(--text-tertiary)',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            fontFamily: 'var(--font-mono)',
+                          }}>
+                            类型
+                          </span>
+                          <Radio.Group value={orderType} onChange={e => setOrderType(e.target.value)} buttonStyle="solid">
+                            <Radio.Button value="limit">限价</Radio.Button>
+                            <Radio.Button value="market">市价</Radio.Button>
+                          </Radio.Group>
+                        </div>
+                      </div>
+
+                      {/* Row 3: Quantity & Price */}
+                      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            fontSize: 11,
+                            color: 'var(--text-tertiary)',
+                            fontWeight: 600,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            fontFamily: 'var(--font-mono)',
+                          }}>
+                            数量
+                          </span>
+                          <InputNumber value={quantity} onChange={v => setQuantity(v || 0)} min={0} step={0.01} style={{ width: 130 }} />
+                        </div>
+                        {orderType === 'limit' && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{
+                              fontSize: 11,
+                              color: 'var(--text-tertiary)',
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                              fontFamily: 'var(--font-mono)',
+                            }}>
+                              价格
+                            </span>
+                            <InputNumber value={price} onChange={v => setPrice(v || 0)} min={0} step={0.01} style={{ width: 130 }} />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Submit */}
+                      <Button
+                        type="primary"
+                        onClick={handlePlaceOrder}
+                        loading={loading}
+                        size="large"
+                        style={{
+                          width: '100%',
+                          maxWidth: 280,
+                          height: 44,
+                          fontWeight: 700,
+                          fontSize: 14,
+                          letterSpacing: '0.5px',
+                          background: side === 'buy'
+                            ? 'linear-gradient(135deg, var(--gain), #059669)'
+                            : 'linear-gradient(135deg, var(--loss), #dc2626)',
+                          border: 'none',
+                          boxShadow: side === 'buy'
+                            ? '0 4px 16px rgba(52, 211, 153, 0.3)'
+                            : '0 4px 16px rgba(248, 113, 113, 0.3)',
+                        }}
+                      >
+                        {side === 'buy' ? '买入' : '卖出'} {symbol}
+                      </Button>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: 'history',
+                label: (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <HistoryOutlined />
+                    订单历史
+                  </span>
+                ),
+                children: (
+                  <div style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    overflow: 'hidden',
+                    marginBottom: 20,
+                  }}>
+                    <Table
+                      dataSource={orders}
+                      columns={orderColumns}
+                      rowKey="order_id"
+                      pagination={{ pageSize: 10, showSizeChanger: true }}
+                      loading={ordersLoading}
+                      locale={{
+                        emptyText: (
+                          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+                            暂无订单记录
+                          </div>
+                        )
+                      }}
+                    />
+                  </div>
+                ),
+              },
+            ]}
+          />
+        </div>
+
+        {/* Positions */}
+        <div className="animate-in stagger-5" style={{
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            padding: '14px 24px',
+            borderBottom: '1px solid var(--border-default)',
+            fontSize: 13,
+            fontWeight: 700,
+            color: 'var(--text-secondary)',
+            fontFamily: 'var(--font-sans)',
+          }}>
+            持仓
+          </div>
+          <Table
+            dataSource={positions}
+            columns={positionColumns}
+            rowKey="symbol"
+            pagination={false}
+            style={{ background: 'transparent' }}
+            locale={{
+              emptyText: (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  暂无持仓
+                </div>
+              )
+            }}
+          />
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Select,
   InputNumber,
@@ -27,6 +27,9 @@ import {
   ExpandOutlined,
   CompressOutlined,
   ThunderboltOutlined,
+  RiseOutlined,
+  FallOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { strategyApi } from '../services/strategy';
 import './Monitor.css';
@@ -109,6 +112,37 @@ const STRATEGY_TYPE_LABELS: Record<string, string> = {
   ichimoku: 'Ichimoku',
 };
 
+// 策略类型 -> 颜色
+const STRATEGY_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  ma:          { bg: 'rgba(34,211,238,0.12)',   text: '#22d3ee', border: 'rgba(34,211,238,0.3)' },
+  macd:        { bg: 'rgba(167,139,250,0.12)', text: '#a78bfa', border: 'rgba(167,139,250,0.3)' },
+  bollinger:    { bg: 'rgba(251,191,36,0.12)',  text: '#fbbf24', border: 'rgba(251,191,36,0.3)' },
+  rsi:         { bg: 'rgba(52,211,153,0.12)',  text: '#34d399', border: 'rgba(52,211,153,0.3)' },
+  supertrend:   { bg: 'rgba(248,113,113,0.12)',text: '#f87171', border: 'rgba(248,113,113,0.3)' },
+  parabolic:    { bg: 'rgba(251,146,60,0.12)', text: '#fb923c', border: 'rgba(251,146,60,0.3)' },
+  stochastic:   { bg: 'rgba(14,165,233,0.12)', text: '#0ea5e9', border: 'rgba(14,165,233,0.3)' },
+  adx:         { bg: 'rgba(34,211,238,0.1)',   text: '#67e8f9', border: 'rgba(34,211,238,0.25)' },
+  momentum:     { bg: 'rgba(244,114,182,0.12)',text: '#f472b6', border: 'rgba(244,114,182,0.3)' },
+  cci:         { bg: 'rgba(161,161,170,0.12)',text: '#a1a1aa', border: 'rgba(161,161,170,0.3)' },
+  atr_channel:  { bg: 'rgba(132,204,22,0.12)',text: '#84cc16', border: 'rgba(132,204,22,0.3)' },
+  keltner:      { bg: 'rgba(20,184,166,0.12)', text: '#14b8a6', border: 'rgba(20,184,166,0.3)' },
+  donchian:     { bg: 'rgba(249,115,22,0.12)', text: '#f97316', border: 'rgba(249,115,22,0.3)' },
+  dual_rsi:     { bg: 'rgba(52,211,153,0.1)',  text: '#6ee7b7', border: 'rgba(52,211,153,0.25)' },
+  ma_rsi:      { bg: 'rgba(99,102,241,0.12)', text: '#6366f1', border: 'rgba(99,102,241,0.3)' },
+  ichimoku:     { bg: 'rgba(234,179,8,0.12)',  text: '#eab308', border: 'rgba(234,179,8,0.3)' },
+};
+
+// 从 strategy_id 提取类型 (格式: type_broker_symbol)
+function extractStrategyType(id: string): string {
+  const parts = id.split('_');
+  // 常见多词策略名占多个下划线片段
+  const multiWord = ['atr_channel', 'keltner', 'donchian', 'dual_rsi', 'ma_rsi', 'ichimoku', 'supertrend', 'parabolic', 'bollinger'];
+  for (const m of multiWord) {
+    if (id.startsWith(m + '_')) return m;
+  }
+  return parts[0] || 'ma';
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const FIELD_LABEL_STYLE: React.CSSProperties = {
@@ -178,6 +212,17 @@ export default function Strategy() {
 
   // Strategies table
   const [strategies, setStrategies] = useState<Strategy[]>([]);
+
+  // 聚合统计（由 strategies 自动派生）
+  const stats = useMemo(() => {
+    const total = strategies.length;
+    const running = strategies.filter(s => s.running).length;
+    const returns = strategies.filter(s => s.total_return != null).map(s => s.total_return as number);
+    const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : null;
+    const best = returns.length > 0 ? Math.max(...returns) : null;
+    const bestStrategy = best != null ? strategies.find(s => s.total_return === best) : null;
+    return { total, running, avgReturn, best, bestStrategy };
+  }, [strategies]);
 
   // Edit modal
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -345,11 +390,11 @@ export default function Strategy() {
   const handleBatchCreateAndStart = async () => {
     setBatchStartLoading(true);
     try {
-      const result = await strategyApi.createAndStartAll(broker) as { created: number; skipped: number; errors: string[] };
+      const result = await strategyApi.createAndStartAll(broker) as { created: number; enabled: number; skipped: number; errors: string[] };
       if (result.errors.length > 0) {
-        message.warning(`创建完成：成功 ${result.created}，跳过 ${result.skipped}，失败 ${result.errors.length} 个`);
+        message.warning(`完成：新增 ${result.created}，启用 ${result.enabled}，跳过 ${result.skipped}，失败 ${result.errors.length} 个`);
       } else {
-        message.success(`一键创建并启用完成：成功 ${result.created}，跳过 ${result.skipped}`);
+        message.success(`一键创建并启用完成：新增 ${result.created}，启用 ${result.enabled}，跳过 ${result.skipped}`);
       }
       fetchStrategies();
     } catch (error: unknown) {
@@ -405,22 +450,41 @@ export default function Strategy() {
   // ─── Table Columns ─────────────────────────────────────────────────────────
   const strategyColumns = [
     { title: 'ID', dataIndex: 'id', key: 'id', width: 120, ellipsis: true },
-    { title: '平台', dataIndex: 'broker', key: 'broker', width: 80 },
+    { title: '平台', dataIndex: 'broker', key: 'broker', width: 70 },
     {
-      title: '交易对',
-      dataIndex: 'id',
-      key: 'symbol',
+      title: '类型',
+      key: 'type',
       width: 120,
-      render: (id: string) => {
-        const parts = id.split('_');
-        return parts.length >= 3 ? parts.slice(2).join('_') : '-';
+      render: (_: unknown, record: Strategy) => {
+        const t = extractStrategyType(record.id);
+        const colors = STRATEGY_TYPE_COLORS[t] ?? { bg: 'rgba(148,163,184,0.1)', text: '#94a3b8', border: 'rgba(148,163,184,0.2)' };
+        return (
+          <Tag
+            style={{
+              background: colors.bg,
+              color: colors.text,
+              borderColor: colors.border,
+              fontSize: 10,
+              fontWeight: 700,
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '0.3px',
+              padding: '1px 6px',
+              borderRadius: 4,
+              margin: 0,
+              lineHeight: '18px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {STRATEGY_TYPE_LABELS[t] ?? t.toUpperCase()}
+          </Tag>
+        );
       },
     },
     {
       title: '状态',
       dataIndex: 'running',
       key: 'running',
-      width: 100,
+      width: 90,
       render: (running: boolean) => (
         <Tag
           color={running ? 'success' : 'default'}
@@ -505,6 +569,7 @@ export default function Strategy() {
     {
       title: '操作',
       key: 'action',
+      width: 140,
       render: (_: unknown, record: Strategy) => (
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'nowrap' }}>
           <Tooltip title="详情">
@@ -932,6 +997,77 @@ export default function Strategy() {
             </Tooltip>
           </div>
         </div>
+
+        {/* 聚合统计条 */}
+        {strategies.length > 0 && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 12,
+              marginBottom: 16,
+              padding: '14px 16px',
+              background: 'rgba(0,0,0,0.2)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            {/* 总策略数 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <BarChartOutlined style={{ color: '#22d3ee', fontSize: 15 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 1 }}>总策略</div>
+                <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', lineHeight: 1.1 }}>{stats.total}</div>
+              </div>
+            </div>
+
+            {/* 运行中 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <PlayCircleOutlined style={{ color: '#34d399', fontSize: 15 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 1 }}>运行中</div>
+                <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: '#34d399', lineHeight: 1.1 }}>
+                  {stats.running}
+                  <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>/ {stats.total}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 平均收益率 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {(stats.avgReturn ?? 0) >= 0
+                  ? <RiseOutlined style={{ color: '#fbbf24', fontSize: 15 }} />
+                  : <FallOutlined style={{ color: '#f87171', fontSize: 15 }} />
+                }
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 1 }}>平均收益</div>
+                <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: (stats.avgReturn ?? 0) >= 0 ? '#fbbf24' : '#f87171', lineHeight: 1.1 }}>
+                  {stats.avgReturn != null ? `${(stats.avgReturn as number) >= 0 ? '+' : ''}${(stats.avgReturn as number).toFixed(2)}%` : '—'}
+                </div>
+              </div>
+            </div>
+
+            {/* 最佳策略 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <RocketOutlined style={{ color: '#a78bfa', fontSize: 15 }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 1 }}>最佳收益</div>
+                <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: '#a78bfa', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {stats.best != null ? `${(stats.best as number) >= 0 ? '+' : ''}${(stats.best as number).toFixed(2)}%` : '—'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <Table
           dataSource={strategies}
           columns={strategyColumns}
@@ -939,10 +1075,39 @@ export default function Strategy() {
           pagination={false}
           locale={{
             emptyText: (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-                <RocketOutlined style={{ fontSize: 32, color: 'var(--border-strong)', marginBottom: 12, display: 'block' }} />
-                <div style={{ fontSize: 13, fontFamily: 'var(--font-sans)' }}>暂无策略</div>
-                <div style={{ fontSize: 12, marginTop: 4, fontFamily: 'var(--font-sans)' }}>上方配置参数后创建策略</div>
+              <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
+                {/* 动画扫描线效果的空状态 */}
+                <div style={{ position: 'relative', display: 'inline-block', marginBottom: 16 }}>
+                  <div style={{
+                    width: 64, height: 64, borderRadius: 16,
+                    background: 'rgba(34,211,238,0.06)',
+                    border: '1px solid rgba(34,211,238,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    position: 'relative', overflow: 'hidden',
+                  }}>
+                    <RocketOutlined style={{ fontSize: 28, color: 'rgba(34,211,238,0.4)' }} />
+                    {/* 扫描线动画 */}
+                    <div style={{
+                      position: 'absolute', top: 0, left: '-100%', width: '60%',
+                      height: 1, background: 'linear-gradient(90deg, transparent, rgba(34,211,238,0.6), transparent)',
+                      animation: 'scan-line 3s linear infinite',
+                    }} />
+                  </div>
+                  {/* 外圈 */}
+                  <div style={{
+                    position: 'absolute', inset: -8, borderRadius: 24,
+                    border: '1px dashed rgba(34,211,238,0.1)',
+                  }} />
+                </div>
+                <div style={{ fontSize: 14, fontFamily: 'var(--font-sans)', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  暂无策略
+                </div>
+                <div style={{ fontSize: 12, fontFamily: 'var(--font-sans)', color: 'var(--text-muted)' }}>
+                  上方配置参数后创建策略
+                </div>
+                <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'rgba(34,211,238,0.4)', marginTop: 8 }}>
+                  // strategy not found
+                </div>
               </div>
             ),
           }}
@@ -1151,65 +1316,147 @@ export default function Strategy() {
                 <div style={{ ...SECTION_HEADER_STYLE, marginBottom: 12 }}>
                   绩效指标
                 </div>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+
+                {/* 绩效主指标卡片 */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                   {/* Total Return */}
-                  <div style={METRIC_CARD_STYLE}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'var(--font-sans)', marginBottom: 6 }}>
+                  <div style={{ ...METRIC_CARD_STYLE, position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: performance.total_return >= 0 ? 'linear-gradient(90deg, var(--gain), transparent)' : 'linear-gradient(90deg, var(--loss), transparent)' }} />
+                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'var(--font-sans)', marginBottom: 8, marginTop: 4 }}>
                       总收益率
                     </div>
-                    <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: performance.total_return >= 0 ? 'var(--gain)' : 'var(--loss)' }}>
+                    <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)', color: performance.total_return >= 0 ? 'var(--gain)' : 'var(--loss)', lineHeight: 1 }}>
                       {performance.total_return >= 0 ? '+' : ''}{performance.total_return.toFixed(2)}%
                     </div>
                   </div>
                   {/* Max Drawdown */}
-                  <div style={METRIC_CARD_STYLE}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'var(--font-sans)', marginBottom: 6 }}>
+                  <div style={{ ...METRIC_CARD_STYLE, position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, var(--loss), transparent)' }} />
+                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'var(--font-sans)', marginBottom: 8, marginTop: 4 }}>
                       最大回撤
                     </div>
-                    <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--loss)' }}>
-                      {performance.max_drawdown.toFixed(2)}%
-                    </div>
-                  </div>
-                  {/* Win Rate */}
-                  <div style={METRIC_CARD_STYLE}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'var(--font-sans)', marginBottom: 6 }}>
-                      胜率
-                    </div>
-                    <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                      {performance.win_rate.toFixed(0)}%
-                    </div>
-                  </div>
-                  {/* Profit/Loss Ratio */}
-                  <div style={METRIC_CARD_STYLE}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'var(--font-sans)', marginBottom: 6 }}>
-                      盈亏比
-                    </div>
-                    <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--cyan-400)' }}>
-                      {performance.profit_loss_ratio.toFixed(2)}
+                    <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--loss)', lineHeight: 1 }}>
+                      -{performance.max_drawdown.toFixed(2)}%
                     </div>
                   </div>
                 </div>
+
+                {/* 胜率 & 盈亏比可视化 */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  {/* Win Rate with progress bar */}
+                  <div style={{ ...METRIC_CARD_STYLE }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'var(--font-sans)' }}>
+                        胜率
+                      </div>
+                      <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: performance.win_rate >= 50 ? 'var(--gain)' : 'var(--loss)' }}>
+                        {performance.win_rate.toFixed(0)}%
+                      </div>
+                    </div>
+                    <div style={{ height: 6, background: 'rgba(248,113,113,0.2)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${performance.win_rate}%`,
+                        height: '100%',
+                        background: performance.win_rate >= 50
+                          ? 'linear-gradient(90deg, var(--gain), #6ee7b7)'
+                          : 'linear-gradient(90deg, var(--loss), #fca5a5)',
+                        borderRadius: 3,
+                        transition: 'width 0.6s ease',
+                        boxShadow: `0 0 8px ${performance.win_rate >= 50 ? 'rgba(52,211,153,0.5)' : 'rgba(248,113,113,0.5)'}`,
+                      }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>0%</span>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>50%</span>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>100%</span>
+                    </div>
+                  </div>
+
+                  {/* Profit/Loss Ratio with visual bar */}
+                  <div style={{ ...METRIC_CARD_STYLE }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'var(--font-sans)' }}>
+                        盈亏比
+                      </div>
+                      <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--cyan-400)' }}>
+                        {performance.profit_loss_ratio.toFixed(2)}
+                      </div>
+                    </div>
+                    {/* 盈亏比迷你对比条 */}
+                    <div style={{ display: 'flex', gap: 2, alignItems: 'center', height: 6 }}>
+                      <div style={{
+                        flex: Math.min(performance.profit_loss_ratio, 3),
+                        height: '100%',
+                        background: 'linear-gradient(90deg, var(--gain), #6ee7b7)',
+                        borderRadius: '3px 0 0 3px',
+                        boxShadow: '0 0 6px rgba(52,211,153,0.4)',
+                      }} />
+                      <div style={{
+                        flex: 1,
+                        height: '100%',
+                        background: 'rgba(148,163,184,0.15)',
+                        borderRadius: '0 3px 3px 0',
+                      }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>盈利</span>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>亏损</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 盈亏交易对比条 */}
+                <div style={{ ...METRIC_CARD_STYLE, marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'var(--font-sans)', marginBottom: 8 }}>
+                    盈亏分布
+                  </div>
+                  {performance.total_trades > 0 ? (
+                    <>
+                      <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', gap: 2 }}>
+                        <div style={{
+                          flex: performance.winning_trades,
+                          height: '100%',
+                          background: 'linear-gradient(135deg, var(--gain), #6ee7b7)',
+                          borderRadius: 5,
+                          boxShadow: '0 0 6px rgba(52,211,153,0.4)',
+                          transition: 'flex 0.6s ease',
+                        }} />
+                        <div style={{
+                          flex: performance.losing_trades,
+                          height: '100%',
+                          background: 'linear-gradient(135deg, var(--loss), #fca5a5)',
+                          borderRadius: 5,
+                          boxShadow: '0 0 6px rgba(248,113,113,0.3)',
+                          transition: 'flex 0.6s ease',
+                        }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--gain)', fontWeight: 600 }}>
+                          盈利 {performance.winning_trades} 次
+                        </span>
+                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--loss)', fontWeight: 600 }}>
+                          亏损 {performance.losing_trades} 次
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', padding: '12px 0' }}>暂无交易数据</div>
+                  )}
+                </div>
+
                 {/* Secondary metrics */}
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
-                  <div style={{ ...METRIC_CARD_STYLE, flex: '1 1 120px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>总交易</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{performance.total_trades}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  <div style={{ ...METRIC_CARD_STYLE, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-sans)' }}>总交易</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{performance.total_trades}</div>
                   </div>
-                  <div style={{ ...METRIC_CARD_STYLE, flex: '1 1 120px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>盈利交易</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--gain)' }}>{performance.winning_trades}</div>
+                  <div style={{ ...METRIC_CARD_STYLE, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-sans)' }}>平均盈利</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--gain)' }}>{performance.avg_profit.toFixed(4)}</div>
                   </div>
-                  <div style={{ ...METRIC_CARD_STYLE, flex: '1 1 120px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>亏损交易</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--loss)' }}>{performance.losing_trades}</div>
-                  </div>
-                  <div style={{ ...METRIC_CARD_STYLE, flex: '1 1 120px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>平均盈利</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--gain)' }}>{performance.avg_profit.toFixed(4)}</div>
-                  </div>
-                  <div style={{ ...METRIC_CARD_STYLE, flex: '1 1 120px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>平均亏损</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--loss)' }}>{performance.avg_loss.toFixed(4)}</div>
+                  <div style={{ ...METRIC_CARD_STYLE, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-sans)' }}>平均亏损</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--loss)' }}>{performance.avg_loss.toFixed(4)}</div>
                   </div>
                 </div>
               </div>
