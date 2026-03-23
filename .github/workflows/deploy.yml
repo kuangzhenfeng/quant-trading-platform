@@ -41,6 +41,7 @@ jobs:
           tags: |
             ghcr.io/${{ steps.repo.outputs.owner }}/${{ steps.repo.outputs.name }}/backend:${{ github.sha }}
             ghcr.io/${{ steps.repo.outputs.owner }}/${{ steps.repo.outputs.name }}/backend:${{ github.ref_name }}
+            ghcr.io/${{ steps.repo.outputs.owner }}/${{ steps.repo.outputs.name }}/backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -52,6 +53,7 @@ jobs:
           tags: |
             ghcr.io/${{ steps.repo.outputs.owner }}/${{ steps.repo.outputs.name }}/frontend:${{ github.sha }}
             ghcr.io/${{ steps.repo.outputs.owner }}/${{ steps.repo.outputs.name }}/frontend:${{ github.ref_name }}
+            ghcr.io/${{ steps.repo.outputs.owner }}/${{ steps.repo.outputs.name }}/frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
