@@ -8,6 +8,7 @@ __pycache__/
 .venv/
 .env
 docker-compose.override.yml
+docker-compose.prod.override.yml
 backend/users.json
 backend/accounts.json
 backend/quant_trading.db
