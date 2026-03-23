@@ -23,6 +23,8 @@ services:
       - DATABASE_URL=postgresql+asyncpg://postgres:quant@db:5432/quant_trading
       - ACCOUNTS_IMPORT_FILE=/app/accounts_import.json
       - PYTHONUNBUFFERED=1
+    env_file:
+      - ./backend/.env
     volumes:
       - ./backend/accounts_import.json:/app/accounts_import.json:ro
       - ./version.json:/app/version.json:ro
