@@ -7,7 +7,7 @@ on:
     types: [published]
 
 env:
-  REGISTRY: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}
+  REGISTRY: ghcr.io/${{ github.repository_owner }}/quant-trading-platform
 
 jobs:
   build:
@@ -105,12 +105,12 @@ jobs:
             docker compose -f docker-compose.prod.yml --env-file .env up -d
 
             echo "==> 等待服务启动"
-            for i in \$(seq 1 30); do
+            for i in $(seq 1 30); do
               if curl -sf http://localhost:9000/health > /dev/null 2>&1; then
                 echo "Backend health check passed"
                 break
               fi
-              echo "等待后端启动... (\$i/30)"
+              echo "等待后端启动... ($i/30)"
               sleep 2
             done
 
