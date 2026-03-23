@@ -11,7 +11,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   backend:
-    image: ghcr.io/REPO_PATH/backend:IMAGE_TAG
+    image: ${REGISTRY}/backend:${IMAGE_TAG}
     ports:
       - "9000:9000"
     extra_hosts:
@@ -31,7 +31,7 @@ services:
       - db
 
   frontend:
-    image: ghcr.io/REPO_PATH/frontend:IMAGE_TAG
+    image: ${REGISTRY}/frontend:${IMAGE_TAG}
     ports:
       - "80:80"
     depends_on:

@@ -79,32 +79,31 @@ jobs:
             REPO_OWNER="${{ github.repository_owner }}"
             REPO_NAME="${{ github.event.repository.name }}"
             REGISTRY="ghcr.io/${REPO_OWNER}/${REPO_NAME}"
-            BACKEND_IMAGE="${REGISTRY}/backend"
-            FRONTEND_IMAGE="${REGISTRY}/frontend"
             IMAGE_TAG="${{ github.sha }}"
 
             echo "==> 切换到项目目录"
             cd "${{ secrets.SERVER_PROJECT_DIR || '/opt/quant-trading-platform' }}"
 
+            echo "==> 更新环境变量配置"
+            cat > .env << 'ENVEOF'
+            REGISTRY=ghcr.io/kuangzhenfeng/quant-trading-platform
+            IMAGE_TAG={{ github.sha }}
+            ENVEOF
+            # 替换占位符为实际值
+            sed -i "s/{{ github.sha }}/$IMAGE_TAG/g" .env
+
             echo "==> 拉取最新代码"
             git pull origin main
-
 
             echo "==> 登录 Container Registry"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            echo "==> 替换镜像标签"
-            cp docker-compose.prod.yml docker-compose.prod.yml.bak
-            sed "s|ghcr.io/REPO_PATH|${REGISTRY}|g; s|:IMAGE_TAG|:${IMAGE_TAG}|g" docker-compose.prod.yml.bak > docker-compose.prod.yml
-            rm docker-compose.prod.yml.bak
-
             echo "==> 拉取最新镜像"
-            docker pull "${BACKEND_IMAGE}:${IMAGE_TAG}"
-            docker pull "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+            docker pull "${REGISTRY}/backend:${IMAGE_TAG}"
+            docker pull "${REGISTRY}/frontend:${IMAGE_TAG}"
 
             echo "==> 重启服务"
-            docker compose -f docker-compose.prod.yml down
-            docker compose -f docker-compose.prod.yml up -d
+            docker compose -f docker-compose.prod.yml --env-file .env up -d
 
             echo "==> 等待服务启动"
             sleep 20
@@ -121,13 +120,13 @@ jobs:
 
             if ! curl -sf http://localhost:9000/health > /dev/null 2>&1; then
               echo "Backend health check failed"
-              docker compose -f docker-compose.prod.yml logs backend | tail -50
+              docker compose -f docker-compose.prod.yml --env-file .env logs backend | tail -50
               exit 1
             fi
 
             if ! curl -sf http://localhost/ > /dev/null 2>&1; then
               echo "Frontend health check failed"
-              docker compose -f docker-compose.prod.yml logs frontend | tail -50
+              docker compose -f docker-compose.prod.yml --env-file .env logs frontend | tail -50
               exit 1
             fi
 
@@ -135,7 +134,7 @@ jobs:
             docker image prune -af --filter "until=24h" || true
 
             echo "==> 部署完成"
-            docker compose -f docker-compose.prod.yml ps
+            docker compose -f docker-compose.prod.yml --env-file .env ps
 
   rollback:
     needs: deploy
@@ -147,12 +146,6 @@ jobs:
     environment: production
 
     steps:
-      - name: Extract repository owner and name
-        id: repo
-        run: |
-          echo "owner=$(echo '${{ github.repository }}' | cut -d'/' -f1)" >> $GITHUB_OUTPUT
-          echo "name=$(echo '${{ github.repository }}' | cut -d'/' -f2)" >> $GITHUB_OUTPUT
-
       - name: Rollback
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -175,19 +168,19 @@ jobs:
             echo "==> 登录 Container Registry"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            echo "==> 重新生成 compose 文件（使用当前 SHA 的镜像）"
-            cp docker-compose.prod.yml docker-compose.prod.yml.rollback 2>/dev/null || true
-            # 从 git 拉取最新 compose 模板（确保干净状态）
-            git checkout docker-compose.prod.yml 2>/dev/null || true
-            sed "s|ghcr.io/REPO_PATH|${REGISTRY}|g; s|:IMAGE_TAG|:${IMAGE_TAG}|g" docker-compose.prod.yml > docker-compose.prod.yml.tmp
-            mv docker-compose.prod.yml.tmp docker-compose.prod.yml
+            echo "==> 更新环境变量"
+            cat > .env << 'ENVEOF'
+            REGISTRY=ghcr.io/kuangzhenfeng/quant-trading-platform
+            IMAGE_TAG={{ github.sha }}
+            ENVEOF
+            sed -i "s/{{ github.sha }}/$IMAGE_TAG/g" .env
 
             echo "==> 拉取镜像"
             docker pull "${REGISTRY}/backend:${IMAGE_TAG}"
             docker pull "${REGISTRY}/frontend:${IMAGE_TAG}"
 
             echo "==> 重启服务"
-            docker compose -f docker-compose.prod.yml down
-            docker compose -f docker-compose.prod.yml up -d
+            docker compose -f docker-compose.prod.yml --env-file .env down
+            docker compose -f docker-compose.prod.yml --env-file .env up -d
             echo "==> 回滚完成"
-            docker compose -f docker-compose.prod.yml ps
+            docker compose -f docker-compose.prod.yml --env-file .env ps
