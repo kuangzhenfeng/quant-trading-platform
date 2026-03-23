@@ -6,6 +6,9 @@ on:
   release:
     types: [published]
 
+env:
+  REGISTRY: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -76,45 +79,38 @@ jobs:
           script: |
             set -e
 
-            REPO_OWNER="${{ github.repository_owner }}"
-            REPO_NAME="${{ github.event.repository.name }}"
-            REGISTRY="ghcr.io/${REPO_OWNER}/${REPO_NAME}"
-            IMAGE_TAG="${{ github.sha }}"
-
             echo "==> 切换到项目目录"
             cd "${{ secrets.SERVER_PROJECT_DIR || '/opt/quant-trading-platform' }}"
 
-            echo "==> 更新环境变量配置"
-            cat > .env << 'ENVEOF'
-            REGISTRY=ghcr.io/kuangzhenfeng/quant-trading-platform
-            IMAGE_TAG={{ github.sha }}
-            ENVEOF
-            # 替换占位符为实际值
-            sed -i "s/{{ github.sha }}/$IMAGE_TAG/g" .env
-
             echo "==> 拉取最新代码"
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> 生成环境变量文件"
+            # 仅生成基础设施变量，REGISTRY 和 IMAGE_TAG 由 CI 决定
+            # 应用配置(AUTH_ENABLED等)从 backend/.env 的 env_file 读取
+            cat > .env << ENVEOF
+            REGISTRY=${{ env.REGISTRY }}
+            IMAGE_TAG=${{ github.sha }}
+            ENVEOF
 
             echo "==> 登录 Container Registry"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            echo "==> 拉取最新镜像"
-            docker pull "${REGISTRY}/backend:${IMAGE_TAG}"
-            docker pull "${REGISTRY}/frontend:${IMAGE_TAG}"
+            echo "==> 停止旧服务"
+            docker compose -f docker-compose.prod.yml --env-file .env down
 
-            echo "==> 重启服务"
+            echo "==> 拉取镜像并启动"
+            docker compose -f docker-compose.prod.yml --env-file .env pull
             docker compose -f docker-compose.prod.yml --env-file .env up -d
 
             echo "==> 等待服务启动"
-            sleep 20
-
-            echo "==> 健康检查"
-            for i in $(seq 1 30); do
+            for i in \$(seq 1 30); do
               if curl -sf http://localhost:9000/health > /dev/null 2>&1; then
                 echo "Backend health check passed"
                 break
               fi
-              echo "等待后端启动... ($i/30)"
+              echo "等待后端启动... (\$i/30)"
               sleep 2
             done
 
@@ -156,28 +152,24 @@ jobs:
           script: |
             set -e
 
-            REPO_OWNER="${{ github.repository_owner }}"
-            REPO_NAME="${{ github.event.repository.name }}"
-            REGISTRY="ghcr.io/${REPO_OWNER}/${REPO_NAME}"
-            IMAGE_TAG="${{ github.sha }}"
-
             echo "==> 检测到部署失败，执行回滚"
-            PROJECT_DIR="${{ secrets.SERVER_PROJECT_DIR || '/opt/quant-trading-platform' }}"
-            cd "$PROJECT_DIR"
+            cd "${{ secrets.SERVER_PROJECT_DIR || '/opt/quant-trading-platform' }}"
+
+            echo "==> 同步代码"
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> 生成环境变量"
+            cat > .env << ENVEOF
+            REGISTRY=${{ env.REGISTRY }}
+            IMAGE_TAG=${{ github.sha }}
+            ENVEOF
 
             echo "==> 登录 Container Registry"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            echo "==> 更新环境变量"
-            cat > .env << 'ENVEOF'
-            REGISTRY=ghcr.io/kuangzhenfeng/quant-trading-platform
-            IMAGE_TAG={{ github.sha }}
-            ENVEOF
-            sed -i "s/{{ github.sha }}/$IMAGE_TAG/g" .env
-
             echo "==> 拉取镜像"
-            docker pull "${REGISTRY}/backend:${IMAGE_TAG}"
-            docker pull "${REGISTRY}/frontend:${IMAGE_TAG}"
+            docker compose -f docker-compose.prod.yml --env-file .env pull
 
             echo "==> 重启服务"
             docker compose -f docker-compose.prod.yml --env-file .env down
